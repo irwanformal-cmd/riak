@@ -381,10 +381,7 @@ def handle_simulate(body: dict) -> dict:
         _finish_trajectory(job, ok=False)
         raise
 
-    with _lock:
-        p["result_web"] = web
-        p["prediction"] = prediction
-        _save_project(p)
+    _store_result(p, web, prediction)   # also snapshots history for undo/redo
 
     return {"web": web, "prediction": prediction, "job": job}
 
