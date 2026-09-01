@@ -100,11 +100,6 @@ h3 { margin: 0; font-size: 11px; font-family: "IBM Plex Mono", ui-monospace, Men
   color: var(--brand);
   line-height: 1.1;
 }
-.brand-text h1::before {
-  content: "∿ ";   /* the wave — same symbol the UI uses for LLM/AI activity */
-  font-weight: 400;
-  opacity: .75;
-}
 .accent { color: var(--accent); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 
