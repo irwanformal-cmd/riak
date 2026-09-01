@@ -194,7 +194,8 @@ def _load_json_strict(text: str) -> dict | None:
     return None
 
 
-def chat(messages: list[dict], temperature: float | None = None, max_tokens: int | None = None, timeout: float | None = None) -> str | None:
+def chat(messages: list[dict], temperature: float | None = None, max_tokens: int | None = None,
+         timeout: float | None = None, reasoning_fallback: bool = True) -> str | None:
     """Send a chat completion request. Returns text or None on any failure."""
     c = get_config()
     if not c["base_url"]:
@@ -246,9 +247,11 @@ def chat(messages: list[dict], temperature: float | None = None, max_tokens: int
             raise ValueError("provider returned no choices")
         content = (data["choices"][0].get("message", {}).get("content") or "").strip()
         # Some reasoning models put the answer only in `reasoning_content` when the token
-        # budget was used up by internal thinking. When content is empty but reasoning
-        # exists, surface that reasoning so the caller still has something to use.
-        if not content:
+        # budget was used up by internal thinking. Surfacing that monologue helps bare
+        # connectivity checks, but it is NOT an answer — interactive callers (node chat)
+        # pass reasoning_fallback=False so a budget-exhausted reply fails cleanly instead
+        # of dumping the model's internal thinking into the UI.
+        if not content and reasoning_fallback:
             reasoning = (data["choices"][0].get("message", {}) or {}).get("reasoning_content")
             if isinstance(reasoning, str) and reasoning.strip():
                 content = reasoning.strip()
@@ -1032,11 +1035,17 @@ def chat_develop_network(node_text: str, node_id: str, context: list[str], user_
                 f"Mutation rules:\n{schema}\n"
                 f"If the user proposes a new event/intervention, use add_root or add_node. "
                 f"Do not delete nodes unless asked. Cap at 6 mutations per turn.")
+    # reasoning models burn hundreds of tokens on internal thinking BEFORE the
+    # answer — 900 left nothing for the JSON, the reply arrived empty, and the
+    # old reasoning fallback then showed the model's monologue to the user.
+    # Give it headroom and fail cleanly instead of leaking reasoning text.
     reply = chat([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                 temperature=0.6, max_tokens=900, timeout=12.0)
+                 temperature=0.6, max_tokens=4096, timeout=120.0, reasoning_fallback=False)
     if not reply:
         return None, None
     data = _extract_json(reply)
     if isinstance(data, dict):
         return data.get("reply") or reply, data.get("mutations") or []
-    return reply, None
+    # no JSON at all — the model rambled or ran out of budget; say nothing
+    # rather than surface raw reasoning to the user
+    return None, None

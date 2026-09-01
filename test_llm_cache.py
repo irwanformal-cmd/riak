@@ -125,5 +125,45 @@ class TestLlmCache(unittest.TestCase):
         self.assertEqual(len(data), 1)
 
 
+
+class TestNodeChatReasoningLeak(unittest.TestCase):
+    """Regression: a reasoning model that burns its token budget on internal
+    thinking must NOT have its monologue shown to the user as a 'reply'."""
+
+    def setUp(self):
+        self._chat = llm.chat
+        self._conf = llm.is_configured
+        llm.is_configured = lambda: True
+
+    def tearDown(self):
+        llm.chat = self._chat
+        llm.is_configured = self._conf
+
+    def test_reasoning_monologue_returns_none_not_text(self):
+        llm.chat = lambda *a, **k: ("Kita perlu menjawab dalam bahasa Indonesia. "
+                                    "Pengguna meminta... mari kita analisis node...")
+        reply, mutations = llm.chat_develop_network("BBM naik 30%", "n000",
+                                                    ["n001: inflasi tinggi"], "jelaskan", "id")
+        self.assertIsNone(reply)
+        self.assertIsNone(mutations)
+
+    def test_valid_json_still_parses(self):
+        llm.chat = lambda *a, **k: '{"reply": "BBM naik menekan daya beli.", "mutations": []}'
+        reply, mutations = llm.chat_develop_network("BBM naik 30%", "n000", [], "jelaskan", "id")
+        self.assertIn("daya beli", reply)
+        self.assertEqual(mutations, [])
+
+    def test_headroom_for_reasoning_models(self):
+        # the call must give reasoning models room to think AND answer
+        seen = {}
+        def spy(*a, **k):
+            seen.update(k)
+            return None
+        llm.chat = spy
+        llm.chat_develop_network("x", "n0", [], "hai", "en")
+        self.assertGreaterEqual(seen.get("max_tokens", 0), 4096)
+        self.assertFalse(seen.get("reasoning_fallback", True))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
