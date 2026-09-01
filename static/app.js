@@ -158,72 +158,66 @@ function toast(msg, isErr) {
   el._t = setTimeout(() => el.classList.add("hidden"), 3200);
 }
 
-/* ---- loading progress (real 0→100%) ---- */
-const _progress = {};
-
-function _setBar(id, pct) {
-  const el = $("#" + id);
-  if (!el) return;
-  const fill = el.querySelector(".loader-fill");
-  const lbl = el.querySelector(".loader-pct");
-  if (fill) fill.style.width = pct + "%";
-  if (lbl) lbl.textContent = Math.round(pct) + "%";
-}
-
-function _startProgress(id) {
-  _stopProgress(id);
-  const st = { v: 0, t: null };
-  _progress[id] = st;
-  _setBar(id, 0);
-  st.t = setInterval(() => {
-    const gap = 92 - st.v;
-    st.v += Math.max(0.35, gap * 0.06);
-    if (st.v > 92) st.v = 92;
-    _setBar(id, st.v);
-  }, 100);
-}
-
-function _stopProgress(id) {
-  const st = _progress[id];
-  if (!st) return;
-  if (st.t) clearInterval(st.t);
-  delete _progress[id];
-}
+/* ---- live processing animation (driven by real trajectory events) ----
+   No fake percentages: three pulsing dots + the actual step the engine is on,
+   streamed from the trajectory feed. Crossfades whenever the step changes. */
+const _procSteps = {};   // status-element id -> step line element
 
 function setStatus(id, msg, kind) {
   const el = $("#" + id);
   el.className = "status " + (kind || "");
   el.innerHTML = "";
+  delete _procSteps[id];
   if (kind === "loading") {
-    el.appendChild(document.createTextNode(msg));
-    const row = document.createElement("span");
-    row.className = "loader-row";
-    const bar = document.createElement("span");
-    bar.className = "loader";
-    const fill = document.createElement("span");
-    fill.className = "loader-fill";
-    bar.appendChild(fill);
-    const pct = document.createElement("span");
-    pct.className = "loader-pct";
-    pct.textContent = "0%";
-    row.appendChild(bar);
-    row.appendChild(pct);
-    el.appendChild(row);
-    _startProgress(id);
+    const wrap = document.createElement("span");
+    wrap.className = "proc";
+    const orb = document.createElement("span");
+    orb.className = "proc-orb";
+    orb.innerHTML = "<i></i><i></i><i></i>";
+    const m = document.createElement("span");
+    m.className = "proc-msg";
+    m.textContent = msg;
+    const step = document.createElement("span");
+    step.className = "proc-step";
+    wrap.appendChild(orb);
+    wrap.appendChild(m);
+    wrap.appendChild(step);
+    el.appendChild(wrap);
+    _procSteps[id] = step;
+    // show the latest trajectory step if a job is already streaming
+    if (_lastTrajStep) _paintProcStep(step, _lastTrajStep);
   } else {
-    const finish = () => {
-      el.innerHTML = "";
-      el.appendChild(document.createTextNode(msg));
-      _stopProgress(id);
-    };
-    if (_progress[id]) {
-      _setBar(id, 100);
-      _stopProgress(id);
-      setTimeout(finish, 380);
-    } else {
-      finish();
-    }
+    el.appendChild(document.createTextNode(msg));
   }
+}
+
+/* latest trajectory event, humanised for the processing widget */
+let _lastTrajStep = "";
+
+function _procText(ev) {
+  const d = (ev.detail || "").trim();
+  if (!d) return "";
+  const short = d.length > 72 ? d.slice(0, 71) + "…" : d;
+  if (ev.kind === "llm") return "🧠 " + short;
+  if (ev.kind === "llm_done") return "🧠 ✓ " + short;
+  if (ev.kind === "phase") return "⚙ " + short;
+  if (ev.kind === "error" || ev.ok === false) return "⚠ " + short;
+  return short;
+}
+
+function _paintProcStep(stepEl, text) {
+  if (stepEl.textContent === text) return;
+  stepEl.textContent = text;
+  stepEl.classList.remove("swap");
+  void stepEl.offsetWidth;   // restart the crossfade animation
+  stepEl.classList.add("swap");
+}
+
+function _broadcastProcStep(ev) {
+  const text = _procText(ev);
+  if (!text) return;
+  _lastTrajStep = text;
+  Object.values(_procSteps).forEach((el) => _paintProcStep(el, text));
 }
 
 async function api(path, body) {
@@ -697,6 +691,8 @@ function renderTrajectory(rec) {
     }
     list.insertAdjacentHTML("beforeend", html);
     state.trajSeen = events.length;
+    // stream the newest step into any active processing animation
+    _broadcastProcStep(events[events.length - 1]);
   }
   const prevActive = list.querySelector(".traj-row.active");
   if (prevActive && events.length) {
@@ -730,6 +726,7 @@ function startTrajectory(job) {
   stopTrajectory(true);
   state.trajJob = job;
   state.trajSeen = 0;
+  _lastTrajStep = "";   // don't leak the previous job's final step into a new run
   const panel = $("#trajectory");
   if (panel) {
     panel.classList.remove("hidden");
