@@ -20,9 +20,14 @@
       </div>
     </div>
     <div class="topbar-right">
-      <!-- TODO: ganti href dengan link donasimu (Saweria / Trakteer / Ko-fi / GitHub Sponsors) -->
-      <a id="donate-link" class="btn btn-donate" href="https://saweria.co/USERNAME"
-         target="_blank" rel="noopener" data-i18n="donate">♥ Donate</a>
+      <div class="donate-wrap">
+        <button id="donate-btn" class="btn btn-donate" type="button">♥ <span data-i18n="donate">Donate</span> ▾</button>
+        <div id="donate-menu" class="donate-menu" hidden>
+          <a href="https://buymeacoffee.com/riaksupport" target="_blank" rel="noopener">☕ Buy Me a Coffee</a>
+          <!-- TODO: ganti USERNAME dengan username Saweria-mu -->
+          <a href="https://saweria.co/USERNAME" target="_blank" rel="noopener">🇮🇩 Saweria</a>
+        </div>
+      </div>
     </div>
   </header>
 

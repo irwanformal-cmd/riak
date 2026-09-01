@@ -32,7 +32,7 @@ const I18N = {
     connected: "Nodes linked.", disconnected: "Link removed.", added: "Node added.",
     thinking: "thinking…", editNodePh: "New name for this event", addConsPh: "A new consequence of this event…",
     settings: "Settings", language: "Language", theme: "Theme", reasoningLevel: "Reasoning level",
-    donate: "♥ Donate",
+    donate: "Donate",
     llmSettings: "LLM provider settings", llmSettingsHint: "Connect Riak to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.", llmTest: "Test connection", llmSave: "Save", llmTestOk: "Connection OK", llmTestFail: "Connection failed", llmSaved: "Saved · provider configured",
     undo: "Undo", redo: "Redo",
     compareScenarios: "Compare scenarios", addScenario: "+ Add scenario", runComparison: "Run comparison",
@@ -75,7 +75,7 @@ const I18N = {
     connected: "Node terhubung.", disconnected: "Kaitan dihapus.", added: "Node ditambahkan.",
     thinking: "berpikir…", editNodePh: "Nama baru untuk peristiwa ini", addConsPh: "Konsekuensi baru dari peristiwa ini…",
     settings: "Pengaturan", language: "Bahasa", theme: "Tema", reasoningLevel: "Level reasoning",
-    donate: "♥ Dukung",
+    donate: "Dukung",
     llmSettings: "Pengaturan provider LLM", llmSettingsHint: "Hubungkan Riak ke provider OpenAI-compatible apa pun · DeepSeek, OpenAI, Qwen, Ollama, atau endpoint custom. Kosongkan untuk tetap mode offline (berbasis aturan).", llmTest: "Tes koneksi", llmSave: "Simpan", llmTestOk: "Koneksi OK", llmTestFail: "Koneksi gagal", llmSaved: "Tersimpan · provider terkonfigurasi",
     undo: "Urungkan", redo: "Lakukan lagi",
     compareScenarios: "Bandingkan skenario", addScenario: "+ Tambah skenario", runComparison: "Jalankan perbandingan",
@@ -116,7 +116,7 @@ const I18N = {
     connected: "节点已连接。", disconnected: "连接已移除。", added: "节点已添加。",
     thinking: "思考中…", editNodePh: "此事件的新名称", addConsPh: "此事件的新后果……",
     settings: "设置", language: "语言", theme: "主题", reasoningLevel: "推理等级",
-    donate: "♥ 支持",
+    donate: "支持",
     llmSettings: "LLM 提供商设置", llmSettingsHint: "将 Riak 连接到任何 OpenAI 兼容提供商。留空则保持离线（基于规则）模式。", llmTest: "测试连接", llmSave: "保存", llmTestOk: "连接成功", llmTestFail: "连接失败", llmSaved: "已保存",
     undo: "撤销", redo: "重做",
     compareScenarios: "对比场景", addScenario: "+ 添加场景", runComparison: "运行对比",
@@ -1427,6 +1427,10 @@ function bindEvents() {
   $("#settings-modal").addEventListener("click", (e) => { if (e.target === $("#settings-modal")) closeSettings(); });
   // close the project "More ▾" dropdown when clicking outside of it
   document.addEventListener("click", (e) => { if (!e.target.closest("#project-list .project-more")) closeProjectMore(); });
+  // donate dropdown
+  $("#donate-btn").onclick = (e) => { e.stopPropagation(); const m = $("#donate-menu"); m.hidden = !m.hidden; };
+  $("#donate-menu").addEventListener("click", () => { $("#donate-menu").hidden = true; });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".donate-wrap")) $("#donate-menu").hidden = true; });
   $("#llm-provider").onchange = applyProviderPreset;
   $("#llm-test").onclick = testLlm;
   $("#llm-save").onclick = saveLlm;
