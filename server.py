@@ -1,0 +1,696 @@
+#!/usr/bin/env python3
+"""Wanion — self-contained swarm-intelligence engine server.
+
+Zero third-party dependencies: uses only the Python standard library, so it
+runs anywhere Python 3.9+ is available:
+
+    python3 server.py            # serves http://127.0.0.1:8000
+    MIROFISH_PORT=8080 python3 server.py
+
+Optional LLM integration is enabled by environment variables (see .env.example).
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import os
+import random
+import sys
+import threading
+import time
+import traceback
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from engine import causal, llm, trajectory  # noqa: E402
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(ROOT, "static")
+SAMPLES_DIR = os.path.join(ROOT, "samples")
+DATA_DIR = os.path.join(ROOT, "data")
+
+MIME = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".ico": "image/x-icon",
+    ".txt": "text/plain; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8",
+}
+
+_lock = threading.Lock()
+projects: dict[str, dict] = {}
+
+# ---- live trajectory (progress) store -------------------------------
+# Each in-flight build/simulate records steps under a job id so the UI can poll
+# "what is the engine doing right now". A thread-local binds events (pushed from
+# engine modules via trajectory.push) to the job being processed by THIS thread.
+_trajectories: dict[str, dict] = {}   # job_id -> {events:[...], active:bool, started:float}
+_tl = threading.local()
+_MAX_TRAJECTORY = 500
+
+
+def _traj_sink(ev: dict):
+    job = getattr(_tl, "job", None)
+    if not job:
+        return
+    rec = _trajectories.get(job)
+    if rec is None:
+        return
+    ev = dict(ev)
+    ev["t_str"] = time.strftime("%H:%M:%S", time.localtime(ev.get("t", time.time())))
+    with _lock:
+        rec["events"].append(ev)
+        if len(rec["events"]) > _MAX_TRAJECTORY:
+            rec["events"] = rec["events"][-_MAX_TRAJECTORY:]
+
+
+def _start_trajectory(job: str):
+    with _lock:
+        _trajectories[job] = {"events": [], "active": True, "started": time.time()}
+    _tl.job = job
+
+
+def _finish_trajectory(job: str, ok: bool = True):
+    with _lock:
+        rec = _trajectories.get(job)
+        if rec:
+            rec["active"] = False
+            rec["ok"] = ok
+    if getattr(_tl, "job", None) == job:
+        _tl.job = None
+
+
+def get_trajectory(job: str) -> dict | None:
+    with _lock:
+        rec = _trajectories.get(job)
+        return dict(rec) if rec else None
+
+
+# ---------------------------------------------------------------- storage
+def _load_projects():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    for fn in sorted(os.listdir(DATA_DIR)):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(DATA_DIR, fn), encoding="utf-8") as f:
+                p = json.load(f)
+            if "web" not in p:  # skip legacy agent-based projects
+                continue
+            projects[p["id"]] = p
+        except Exception as exc:  # noqa: BLE001
+            print(f"[store] skip {fn}: {exc}")
+
+
+def _save_project(p: dict):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(os.path.join(DATA_DIR, f"{p['id']}.json"), "w", encoding="utf-8") as f:
+        json.dump(p, f, ensure_ascii=False, indent=2)
+
+
+# ---------------------------------------------------------------- llm config
+LLM_CONFIG_PATH = os.path.join(DATA_DIR, "llm_config.json")
+_LLM_FIELDS = ("base_url", "model", "endpoint", "auth_type", "header_name", "api_key")
+
+
+def _load_dotenv(path: str = ".env") -> None:
+    """Minimal .env loader (stdlib only). Populates os.environ so the engine's
+    env-fallback (LLM_BASE_URL / LLM_MODEL_NAME / LLM_API_KEY) actually works when
+    run via ./run.sh — run.sh copies .env but never sources it. Existing env wins."""
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except Exception:  # noqa: BLE001 — a bad .env must never block startup
+        pass
+
+
+def _load_llm_config():
+    if os.path.exists(LLM_CONFIG_PATH):
+        try:
+            with open(LLM_CONFIG_PATH, encoding="utf-8") as f:
+                llm.set_runtime_config(json.load(f))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[llm-config] load failed: {exc}")
+
+
+def _save_llm_config(cfg: dict):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(LLM_CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+def _masked_llm_config() -> dict:
+    c = llm.get_config()
+    key = c.get("api_key", "")
+    return {
+        "base_url": c.get("base_url", ""),
+        "model": c.get("model", ""),
+        "endpoint": c.get("endpoint", "/chat/completions"),
+        "auth_type": c.get("auth_type", "bearer"),
+        "header_name": c.get("header_name", ""),
+        "api_key": ("••••••••" + key[-4:]) if key else "",
+        "has_key": bool(key),
+        "configured": llm.is_configured(),
+        "reasoning_level": c.get("reasoning_level") or "",
+    }
+
+
+def handle_llm_config_save(body: dict) -> dict:
+    cur = llm.get_config()
+    endpoint = str(body.get("endpoint") or "").strip()
+    if endpoint and not endpoint.startswith("/"):
+        endpoint = "/" + endpoint
+    auth_type = str(body.get("auth_type") or "bearer").strip()
+    if auth_type not in ("bearer", "api-key", "none"):
+        auth_type = "bearer"
+    level = str(body.get("reasoning_level") or "").strip().lower()
+    if level not in llm.REASONING_LEVELS:
+        level = ""
+    cfg = {
+        "base_url": str(body.get("base_url") or "").strip(),
+        "model": str(body.get("model") or "").strip(),
+        "endpoint": endpoint,
+        "auth_type": auth_type,
+        "header_name": str(body.get("header_name") or "").strip(),
+        "api_key": cur.get("api_key", ""),
+        "reasoning_level": level,
+    }
+    new_key = str(body.get("api_key") or "").strip()
+    if new_key and not new_key.startswith("••"):
+        cfg["api_key"] = new_key
+    llm.set_runtime_config(cfg)
+    _save_llm_config(cfg)
+    return _masked_llm_config()
+
+
+def handle_llm_test() -> dict:
+    if not llm.is_configured():
+        raise ValueError("LLM not configured — set base URL and model first")
+    reply = llm.test()
+    if reply is None:
+        raise ValueError(f"connection failed: {llm.get_last_error() or 'no response'}")
+    return {"ok": True, "reply": reply}
+
+
+# ---------------------------------------------------------------- helpers
+def _project_view(p: dict) -> dict:
+    # full detail view (list view is lean via list_projects())
+    return dict(p)
+
+
+def list_projects() -> list[dict]:
+    out = []
+    for p in projects.values():
+        out.append({
+            "id": p["id"],
+            "name": p["name"],
+            "created": p["created"],
+            "n_nodes": p["web"].get("n_nodes", 0),
+            "topic": p["web"].get("topic", ""),
+            "has_result": p.get("prediction") is not None,
+            "has_report": p.get("report") is not None,
+        })
+    return sorted(out, key=lambda x: x["created"], reverse=True)
+
+
+def _load_samples() -> list[dict]:
+    samples = []
+    if not os.path.isdir(SAMPLES_DIR):
+        return samples
+    for fn in sorted(os.listdir(SAMPLES_DIR)):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(SAMPLES_DIR, fn), encoding="utf-8") as f:
+                samples.append(json.load(f))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[samples] skip {fn}: {exc}")
+    return samples
+
+
+# ---------------------------------------------------------------- endpoints
+def handle_create_project(body: dict) -> dict:
+    name = (body.get("name") or "Untitled scenario").strip()[:120]
+    seed_text = (body.get("seed_text") or "").strip()
+    if not seed_text:
+        raise ValueError("seed_text is required")
+    seed = int(body.get("seed", int(time.time()) % 2**31))
+    config = body.get("config") or {}
+    lang = str(body.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+    job = str(body.get("job") or "").strip() or f"j{int(time.time()*1000)}"
+    _start_trajectory(job)
+    trajectory.push("phase", f"building world from scenario")
+    try:
+        web = causal.build_web(seed_text, seed, config, lang=lang)
+        _finish_trajectory(job, ok=True)
+    except Exception:
+        _finish_trajectory(job, ok=False)
+        raise
+    pid = f"p{int(time.time()*1000)}"
+    p = {
+        "id": pid,
+        "name": name,
+        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "seed_text": seed_text,
+        "seed": seed,
+        "lang": lang,
+        "build_config": config,
+        "web": web,
+        "prediction": None,
+        "report": None,
+        "job": job,
+    }
+    with _lock:
+        projects[pid] = p
+        _save_project(p)
+    view = _project_view(p)
+    view["job"] = job
+    return view
+
+
+def handle_simulate(body: dict) -> dict:
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+
+    config = dict(p.get("build_config", {}))
+    config.update(body.get("config") or {})
+    config["seed"] = int(config.get("seed", p["seed"]))
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+
+    # start from the stored baseline web (deterministic, no re-reasoning)
+    web = copy.deepcopy(p["web"])
+    interventions = config.get("interventions") or []
+    job = str(body.get("job") or "").strip() or f"j{int(time.time()*1000)}"
+    _start_trajectory(job)
+    trajectory.push("phase", "applying counterfactual intervention(s)" if interventions else "propagating likelihoods")
+    try:
+        if interventions:
+            web = causal.apply_interventions(web, interventions, random.Random(config["seed"] + 104729), config, lang=lang)
+
+        prediction = causal.predict(web, lang=lang)
+        _finish_trajectory(job, ok=True)
+    except Exception:
+        _finish_trajectory(job, ok=False)
+        raise
+
+    with _lock:
+        p["result_web"] = web
+        p["prediction"] = prediction
+        _save_project(p)
+
+    return {"web": web, "prediction": prediction, "job": job}
+
+
+def handle_report(body: dict) -> dict:
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    if p.get("prediction") is None:
+        raise ValueError("run a prediction first")
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    rep = causal.causal_report(p.get("result_web") or p["web"], p["prediction"], lang=lang)
+    with _lock:
+        p["report"] = rep
+        _save_project(p)
+    return rep
+
+
+def handle_chat(body: dict) -> dict:
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    node_id = body.get("node_id")
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    return causal.explain_node(p.get("result_web") or p["web"], node_id, lang=lang)
+
+
+def handle_derive(body: dict) -> dict:
+    """AI-driven qualitative causal-mathematical derivation for an event.
+
+    The frontend may optionally pass a project_id + node_id to pull ancestry from the
+    stored web; otherwise it can pass the text/ancestry directly. Either way the
+    engine is asked to *derive* a qualitative mathematical model (signs, ∂, f()).
+    """
+    pid = body.get("project_id")
+    p = projects.get(pid) if pid else None
+    node_id = body.get("node_id")
+    event = body.get("text", "")
+    if not event and p and node_id:
+        node = next((n for n in p["web"]["nodes"] if n.get("id") == node_id), None)
+        if node:
+            event = node.get("text", "")
+    lang = body.get("lang")
+    if not lang and p:
+        lang = p.get("lang")
+    if not lang:
+        lang = "en"
+    lang = str(lang).strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+    ancestry = list(body.get("ancestry") or [])
+    if not ancestry and p and node_id:
+        ancestry = causal.ancestry_texts(p.get("result_web") or p["web"], node_id)
+    job = "derive-" + node_id if node_id else ("derive-" + str(int(time.time() * 1000)))
+    _start_trajectory(job)
+    try:
+        result = llm.derive_math(event, ancestry, lang=lang, timeout=150.0) or {}
+    finally:
+        _finish_trajectory(job, ok=bool(result))
+    if not result:
+        # graceful fallback: qualitative mechanistic derivation (no LLM, no invented numbers)
+        result = causal.mecher_derive_qualitative(event, ancestry, lang=lang) or {
+            "variables": [], "symbolic_relationships": [], "qualitative_equations": [],
+            "propagation_chains": [], "feedback_loop": False, "time_horizon": {"short_term": [], "medium_term": [], "long_term": []},
+            "conflicting_effects": False, "scenarios": [], "conclusion": {"math": "", "nl": "(no derivation available)"},
+            "domain": causal.detect_domain(event), "units": {}, "source": "mech",
+        }
+    # always fill in context-derived fields so the UI has a complete derivation
+    web_ref = (p.get("result_web") or p.get("web", {})) if p else {}
+    result["probabilities"] = causal.compute_risks(event, ancestry, web_ref, lang=lang)
+    result["domain"] = result.get("domain") or causal.detect_domain(event)
+    result["node_id"] = node_id or ""
+    return result
+
+
+def _active_web(p: dict) -> dict:
+    """The editable web: the simulated result if present, else the baseline."""
+    return copy.deepcopy(p.get("result_web") or p["web"])
+
+
+def _node_context(web: dict, node_id: str, limit: int = 12) -> list[str]:
+    """Compact "id: text" context for the LLM: the node, its neighbours, + top nodes."""
+    nodes = {n["id"]: n for n in web["nodes"]}
+    out: dict[str, str] = {}
+    for e in web["edges"]:
+        if e["source"] == node_id and e["target"] in nodes:
+            out[e["target"]] = nodes[e["target"]]["text"]
+        elif e["target"] == node_id and e["source"] in nodes:
+            out[e["source"]] = nodes[e["source"]]["text"]
+    for n in sorted((n for n in web["nodes"] if n["id"] != node_id),
+                    key=lambda n: -(n.get("probability") or 0))[:limit]:
+        out.setdefault(n["id"], n["text"])
+    return [f"[{nid}] {txt}" for nid, txt in out.items()]
+
+
+def _store_result(p: dict, web: dict, prediction: dict):
+    with _lock:
+        p["result_web"] = web
+        p["prediction"] = prediction
+        _save_project(p)
+
+
+def handle_develop(body: dict) -> dict:
+    """AI co-develops the network around a node (chat + graph mutations)."""
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    node_id = body.get("node_id")
+    message = str(body.get("message") or "").strip()
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+    if not node_id:
+        raise ValueError("node_id is required")
+
+    web = _active_web(p)
+    nodes = {n["id"]: n for n in web["nodes"]}
+    node = nodes.get(node_id)
+    if not node:
+        raise ValueError("node not found")
+
+    if not message:
+        return causal.explain_node(web, node_id, lang=lang)
+
+    rng = random.Random(int(p["seed"]) + 104729 + len(web["nodes"]))
+    context = _node_context(web, node_id)
+    reply, mutations = llm.chat_develop_network(node["text"], node_id, context, message, lang)
+
+    applied: list[dict] = []
+    if reply is not None:
+        web, applied = causal.apply_mutations(web, mutations or [], node_id, lang, rng)
+    else:
+        web, reply, applied = causal.offline_develop(web, node_id, lang, rng)
+
+    prediction = causal.predict(web, lang=lang)
+    _store_result(p, web, prediction)
+    return {"reply": reply, "mutations": applied, "web": web, "prediction": prediction}
+
+
+def handle_edit(body: dict) -> dict:
+    """Apply explicit user graph edits (drag is client-side; add/remove/rename/link)."""
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+    node_id = body.get("node_id")
+    web = _active_web(p)
+    mutations = body.get("mutations") or []
+    rng = random.Random(int(p["seed"]) + 104729 + len(web["nodes"]))
+    web, applied = causal.apply_mutations(web, mutations, node_id, lang, rng)
+    prediction = causal.predict(web, lang=lang)
+    _store_result(p, web, prediction)
+    return {"mutations": applied, "web": web, "prediction": prediction}
+
+
+def handle_export(body: dict) -> dict:
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    fmt = body.get("format", "json").lower()
+    if fmt == "json":
+        content = json.dumps(p, ensure_ascii=False, indent=2)
+        return {"format": "json", "filename": f"{p['name']}.json", "content": content}
+    if fmt == "markdown":
+        content = _to_markdown(p)
+        return {"format": "markdown", "filename": f"{p['name']}.md", "content": content}
+    raise ValueError("format must be json or markdown")
+
+
+def _to_markdown(p: dict) -> str:
+    lines = [f"# {p['name']}", "", f"*Generated by Wanion — {p['created']}*", ""]
+    lines += [f"## Scenario", "", p["web"].get("topic", ""), ""]
+    if p.get("report"):
+        r = p["report"]
+        lines += ["## Prediction", "", r.get("summary", ""), ""]
+        if r.get("chain"):
+            lines += ["## Most likely path", ""]
+            lines.append(" → ".join(r["chain"]))
+            lines.append("")
+        lines += ["## Key outcomes", ""]
+        lines += [f"- {f}" for f in r.get("findings", [])]
+        lines.append("")
+    else:
+        lines += ["## Prediction", "", "*(no prediction run yet)*", ""]
+    lines += [f"## Causal web", "", f"{p['web']['n_nodes']} events, {p['web']['n_edges']} causal links", ""]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- http
+class Handler(BaseHTTPRequestHandler):
+    server_version = "Wanion/0.1"
+
+    def _send_json(self, obj, status=200):
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_bytes(self, data: bytes, ctype: str, status=200):
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _read_body(self) -> dict:
+        length = int(self.headers.get("Content-Length") or 0)
+        if not length:
+            return {}
+        raw = self.rfile.read(length)
+        try:
+            return json.loads(raw.decode("utf-8")) or {}
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid JSON: {exc}")
+
+    def _route(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        method = self.command
+
+        if method == "OPTIONS":
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.end_headers()
+            return
+
+        # API
+        if path == "/api/health":
+            return self._send_json({"ok": True, "version": "0.1.0"})
+        if path == "/api/config":
+            c = llm.get_config()
+            return self._send_json({
+                "llm_configured": llm.is_configured(),
+                "model": c["model"],
+                "llm_failed": causal._llm_failed,
+                "llm_calls": causal._llm_calls,
+                "llm_budget": causal._LLM_BUDGET,
+                "llm_last_error": (llm.get_last_error() or "")[:200],
+            })
+        if path == "/api/llm-config" and method == "GET":
+            return self._send_json(_masked_llm_config())
+        if path == "/api/samples":
+            return self._send_json(_load_samples())
+
+        if path.startswith("/api/"):
+            # ---- GET endpoints ----
+            if method == "GET":
+                if path == "/api/trajectory":
+                    job = (urllib.parse.parse_qs(parsed.query).get("job") or [""])[0]
+                    if not job:
+                        return self._send_json({"error": "job required"}, 400)
+                    rec = get_trajectory(job)
+                    if rec is None:
+                        return self._send_json({"error": "job not found", "active": False}, 404)
+                    return self._send_json(rec)
+                if path == "/api/projects":
+                    return self._send_json(list_projects())
+                if path.startswith("/api/projects/"):
+                    pid = path.rsplit("/", 1)[-1]
+                    with _lock:
+                        p = projects.get(pid)
+                    if not p:
+                        return self._send_json({"error": "project not found"}, 404)
+                    return self._send_json(_project_view(p))
+                return self._send_json({"error": "not found"}, 404)
+
+            if method != "POST":
+                return self._send_json({"error": "method not allowed"}, 405)
+            try:
+                body = self._read_body()
+                if path == "/api/projects":
+                    out = handle_create_project(body)
+                elif path == "/api/simulate":
+                    out = handle_simulate(body)
+                elif path == "/api/report":
+                    out = handle_report(body)
+                elif path == "/api/chat":
+                    out = handle_chat(body)
+                elif path == "/api/develop":
+                    out = handle_develop(body)
+                elif path == "/api/derive":
+                    out = handle_derive(body)
+                elif path == "/api/graph":
+                    out = handle_edit(body)
+                elif path == "/api/export":
+                    out = handle_export(body)
+                elif path == "/api/llm-config":
+                    out = handle_llm_config_save(body)
+                elif path == "/api/llm-test":
+                    out = handle_llm_test()
+                else:
+                    return self._send_json({"error": "not found"}, 404)
+                return self._send_json(out)
+            except ValueError as exc:
+                return self._send_json({"error": str(exc)}, 400)
+            except Exception as exc:  # noqa: BLE001
+                traceback.print_exc()
+                return self._send_json({"error": f"server error: {exc}"}, 500)
+
+        # static
+        if method != "GET":
+            return self._send_json({"error": "method not allowed"}, 405)
+        return self._serve_static(path)
+
+    def _serve_static(self, path: str):
+        rel = path.lstrip("/") or "index.html"
+        # prevent path traversal
+        full = os.path.normpath(os.path.join(STATIC_DIR, rel))
+        if not full.startswith(STATIC_DIR):
+            return self._send_json({"error": "forbidden"}, 403)
+        if not os.path.isfile(full):
+            return self._send_json({"error": "not found"}, 404)
+        ext = os.path.splitext(full)[1].lower()
+        with open(full, "rb") as f:
+            return self._send_bytes(f.read(), MIME.get(ext, "application/octet-stream"))
+
+    def do_GET(self):
+        self._route()
+
+    def do_POST(self):
+        self._route()
+
+    def do_OPTIONS(self):
+        self._route()
+
+    def log_message(self, fmt, *args):  # quieter logs
+        print(f"[http] {self.address_string()} {fmt % args}")
+
+
+def main():
+    _load_dotenv()
+    _load_projects()
+    _load_llm_config()
+    trajectory.set_sink(_traj_sink)
+    port = int(os.environ.get("MIROFISH_PORT", "8000"))
+    host = os.environ.get("MIROFISH_HOST", "127.0.0.1")
+    httpd = ThreadingHTTPServer((host, port), Handler)
+    c = llm.get_config()
+    llm_state = f"LLM: {c['model']} @ {c['base_url']}" if llm.is_configured() else "LLM: offline (rule-based)"
+    print(f"\n  Wanion is running")
+    print(f"  →  http://{host}:{port}")
+    print(f"  →  {llm_state}")
+    print(f"  →  projects on disk: {DATA_DIR}\n")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down.")
+
+
+if __name__ == "__main__":
+    main()

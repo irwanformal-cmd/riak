@@ -1,0 +1,7 @@
+{
+  "id": "sample-dam-project",
+  "name": "Environment — Hydro Dam Proposal",
+  "description": "A dam offers clean energy but floods villages and a nature reserve. Development vs. conservation.",
+  "seed_text": "A proposed dam would provide hydroelectric power and flood control but would flood several villages and a nature reserve. Engineers support it for clean energy and water security. Environmentalists and displaced villagers oppose it fiercely. A government official defended the project as \"critical infrastructure\". An ecologist warned the dam would destroy an irreplaceable ecosystem. Fishermen downstream fear losing their livelihoods. Public opinion is torn between development and conservation.",
+  "config": {"agents": 24, "rounds": 34}
+}

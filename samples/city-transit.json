@@ -1,0 +1,7 @@
+{
+  "id": "sample-city-development",
+  "name": "City Development — Transit Project",
+  "description": "A proposed transit megaproject divides residents, businesses, and officials.",
+  "seed_text": "The city proposes a new transit megaproject that would demolish a historic market to build a metro line. Many residents support the project for faster commuting and jobs. Shop owners oppose it, fearing they will lose their businesses and heritage. A business leader supports the metro, calling it \"a leap forward for the whole city\". An activist group criticizes the plan, saying the government ignored residents' voices. Some experts warn about cost overruns, while others highlight long-term economic benefits. The mayor promises public hearings. Social media is full of arguments between supporters and opponents.",
+  "config": {"agents": 30, "rounds": 40}
+}

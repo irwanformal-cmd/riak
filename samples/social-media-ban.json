@@ -1,0 +1,7 @@
+{
+  "id": "sample-social-media-ban",
+  "name": "Tech Policy — Platform Ban",
+  "description": "A government bans a foreign social platform. Youth, parents, businesses and digital-rights groups clash.",
+  "seed_text": "The government announces it will ban a popular foreign social media platform over data security concerns. Young users protest, saying the ban cuts them off from friends and communities. Parents and officials support it, citing privacy and safety. Small businesses that rely on the platform for sales are alarmed. A cybersecurity expert supports the ban, calling the platform \"a national security risk\". A digital rights group calls it censorship. The ban takes effect in 30 days, and debate rages.",
+  "config": {"agents": 28, "rounds": 36}
+}

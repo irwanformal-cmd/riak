@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime data & secrets
+data/
+.env
+*.log
+
+# OS
+.DS_Store

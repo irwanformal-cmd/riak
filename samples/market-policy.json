@@ -1,0 +1,7 @@
+{
+  "id": "sample-market-policy",
+  "name": "Market Signal — Interest Rate Cut",
+  "description": "Investors, analysts, workers, and officials react to a surprise policy decision.",
+  "seed_text": "The central bank unexpectedly cuts interest rates to stimulate the economy. Investors welcome the move, expecting markets to rise. Some analysts warn the cut signals deeper economic trouble. Workers hope it will protect jobs, but savers fear lower returns. A senior official defended the decision, saying the economy needs support. An opposition economist criticized the cut as \"too little, too late\". Media reports describe a mix of relief and anxiety. Financial markets are volatile as traders debate what happens next.",
+  "config": {"agents": 24, "rounds": 34}
+}

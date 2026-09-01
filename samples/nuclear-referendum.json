@@ -1,0 +1,7 @@
+{
+  "id": "sample-nuclear-referendum",
+  "name": "Referendum — Nuclear Power",
+  "description": "A national vote on new nuclear plants. Farmers, engineers, activists and politicians take sides.",
+  "seed_text": "The nation will hold a referendum on building new nuclear power plants to secure energy independence. Supporters say nuclear is clean and reliable. Opponents warn of accident and waste risks. Farmers near the proposed sites are worried. A veteran engineer supports the plan, calling it \"the safest path forward\". An environmental activist opposes it, saying renewable energy is safer and cheaper. Politicians are divided along party lines, and public debate is intense.",
+  "config": {"agents": 26, "rounds": 36}
+}

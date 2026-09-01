@@ -1,0 +1,7 @@
+{
+  "id": "sample-fiction-ending",
+  "name": "Fiction Sandbox — The Lost Ending",
+  "description": "An imaginative 'what-if': deduce how a story's unresolved conflict plays out among its characters.",
+  "seed_text": "In an ancient estate, two rival houses dispute an inheritance after the patriarch's sudden death. The eldest daughter claims the estate, while the younger son insists their father promised it to him. Servants and villagers take sides. A wise elder warns that the feud will destroy both families. A travelling scholar suggests a compromise, but neither side listens. Rumors spread that a hidden will exists. Tempers rise as the dispute drags on, and old secrets begin to surface.",
+  "config": {"agents": 20, "rounds": 30}
+}

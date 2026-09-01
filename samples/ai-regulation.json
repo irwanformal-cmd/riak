@@ -1,0 +1,7 @@
+{
+  "id": "sample-ai-regulation",
+  "name": "AI Regulation — License for Models",
+  "description": "A government proposes strict AI licensing; tech, researchers, workers and civil-rights groups clash. Good for testing polarization.",
+  "seed_text": "A government proposes strict new regulations on artificial intelligence, requiring licenses for large models. Tech companies warn the rules will stifle innovation and drive startups abroad. Researchers are split: some welcome safety rules, others fear overreach. Workers worry AI will replace their jobs regardless. A prominent CEO said \"over-regulation will hand leadership to our rivals\". A safety researcher praised the plan as \"long overdue\". Civil rights groups support transparency rules. Online opinion is sharply divided.",
+  "config": {"agents": 28, "rounds": 38}
+}

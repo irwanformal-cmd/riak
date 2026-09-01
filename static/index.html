@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wanion · Causal Prediction Engine</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..700&family=Comfortaa:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none'><g stroke='%23435946' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M47 24 C42 15 35 9 27 8'/><path d='M53 24 C58 15 65 9 73 8'/><circle cx='50' cy='27' r='3' fill='%23435946' stroke='none'/><path d='M50 31 C48.8 43 48.8 55 50 68'/><path d='M47 34 C37 14 16 6 9 16 C2 26 9 44 24 52 C34 57 44 55 47 49'/><path d='M53 34 C63 14 84 6 91 16 C98 26 91 44 76 52 C66 57 56 55 53 49'/><g stroke-width='1.8' opacity='.55'><path d='M43 35 C35 23 24 16 15 19'/><path d='M42 44 C33 35 22 31 13 33'/><path d='M57 35 C65 23 76 16 85 19'/><path d='M58 44 C67 35 78 31 87 33'/></g><path d='M47 55 C36 58 26 67 29 79 C32 89 44 89 48 79'/><path d='M53 55 C64 58 74 67 71 79 C68 89 56 89 52 79'/><g stroke-width='1.8' opacity='.55'><path d='M44 62 C37 65 33 71 36 78 C38 82 43 81 45 75'/><path d='M56 62 C63 65 67 71 64 78 C62 82 57 81 55 75'/></g></g></svg>">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo"><svg width="32" height="32" viewBox="0 0 100 100" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M47 24 C42 15 35 9 27 8"/><path d="M53 24 C58 15 65 9 73 8"/><circle cx="50" cy="27" r="2.8" fill="currentColor" stroke="none"/><path d="M50 31 C48.8 43 48.8 55 50 68"/><path d="M47 34 C37 14 16 6 9 16 C2 26 9 44 24 52 C34 57 44 55 47 49"/><path d="M53 34 C63 14 84 6 91 16 C98 26 91 44 76 52 C66 57 56 55 53 49"/><g stroke-width="1.5" opacity=".55"><path d="M43 35 C35 23 24 16 15 19"/><path d="M42 44 C33 35 22 31 13 33"/><path d="M57 35 C65 23 76 16 85 19"/><path d="M58 44 C67 35 78 31 87 33"/></g><path d="M47 55 C36 58 26 67 29 79 C32 89 44 89 48 79"/><path d="M53 55 C64 58 74 67 71 79 C68 89 56 89 52 79"/><g stroke-width="1.5" opacity=".55"><path d="M44 62 C37 65 33 71 36 78 C38 82 43 81 45 75"/><path d="M56 62 C63 65 67 71 64 78 C62 82 57 81 55 75"/></g></g></svg></span>
+      <div class="brand-text">
+        <h1>wanion</h1>
+        <span class="version-badge" title="Version 1.0.0">v1.0.0</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="panel">
+        <h2 data-i18n="projects">Projects</h2>
+        <div id="project-list"></div>
+        <button id="new-project-btn" class="btn btn-ghost btn-block" data-i18n="newProject">+ New scenario</button>
+      </section>
+
+      <section class="panel sidebar-settings">
+        <h2 data-i18n="settings">Settings</h2>
+        <button id="settings-btn" class="btn btn-block">⚙ <span data-i18n="llmSettings">LLM provider settings</span></button>
+        <div id="llm-badge" class="badge badge-off">⋯</div>
+        <label class="settings-item">
+          <span data-i18n="language">Language</span>
+          <select id="lang" class="lang-select">
+            <option value="en">English</option>
+            <option value="id">Bahasa Indonesia</option>
+            <option value="zh">中文</option>
+          </select>
+        </label>
+        <label class="settings-item">
+          <span data-i18n="theme">Theme</span>
+          <select id="theme" class="lang-select">
+            <option value="auto">Auto</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+      </section>
+    </aside>
+
+    <section class="content">
+      <section id="step-build" class="panel step">
+        <h2><span class="stepnum">1</span> <span data-i18n="buildTitle">Describe the scenario</span></h2>
+        <p class="hint" data-i18n="buildHint">Paste a scenario, a decision, or a “what if” question. Wanion maps out the web of consequences · what this causes, and what those cause next.</p>
+        <textarea id="seed-text" rows="8" data-i18n-ph="seedPh"></textarea>
+        <div class="row">
+          <input id="project-name" type="text" data-i18n-ph="namePh">
+          <input id="seed-num" type="number" placeholder="Seed" value="42" title="Random seed (reproducibility)">
+          <input id="cfg-branching" type="number" placeholder="Branches" value="5" min="1" title="Consequences generated per event">
+          <input id="cfg-depth" type="number" placeholder="Depth" value="3" min="1" title="How many cause→effect levels deep">
+          <input id="cfg-maxnodes" type="number" placeholder="Max nodes" value="2000" min="1" title="Safety cap on total events (1–20000)">
+        </div>
+        <button id="build-btn" class="btn btn-primary" data-i18n="build">Map the consequences</button>
+        <div id="build-status" class="status"></div>
+      </section>
+
+      <section id="step-setup" class="panel step hidden">
+        <h2><span class="stepnum">2</span> <span data-i18n="setupTitle">Add interventions</span></h2>
+        <div id="world-summary" class="world-summary"></div>
+        <h3 data-i18n="interventions">Interventions (“and if we do this…”)</h3>
+        <div id="interventions" class="interventions"></div>
+        <button id="add-intervention" class="btn btn-ghost btn-block" data-i18n="addIntervention">+ Add intervention</button>
+
+        <button id="run-btn" class="btn btn-primary btn-block btn-big" data-i18n="run">Run prediction</button>
+        <div id="run-status" class="status"></div>
+      </section>
+
+      <section id="results" class="panel step hidden">
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-tab="network" data-i18n="tabNetwork">Network</button>
+          <button class="tab" data-tab="report" data-i18n="tabReport">Report</button>
+          <button class="tab" data-tab="interact" data-i18n="tabInteract">Chat</button>
+          <button class="tab" data-tab="math" data-i18n="tabMath">Math</button>
+        </div>
+
+        <div id="tab-network" class="tabpane">
+          <div class="vizbar">
+            <div class="legend" id="network-legend"></div>
+            <span class="viz-actions">
+              <button id="zoom-in" class="btn btn-icon" title="Zoom in">+</button>
+              <button id="zoom-out" class="btn btn-icon" title="Zoom out">−</button>
+              <button id="fit-view" class="btn btn-icon" title="Fit view">⤢</button>
+              <button id="relayout-btn" class="btn btn-icon" title="Re-layout">⟳</button>
+              <button id="connect-btn" class="btn btn-icon" title="Connect two nodes">⛓</button>
+              <button id="formula-btn" class="btn btn-icon" title="Mathematical derivation">∂</button>
+            </span>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="network-canvas"></canvas>
+          </div>
+        </div>
+
+        <div id="tab-report" class="tabpane hidden">
+          <div id="report-body" class="report"></div>
+          <div class="row export-row">
+            <button id="export-json" class="btn">⬇ JSON</button>
+            <button id="export-md" class="btn">⬇ Markdown</button>
+            <button id="export-png" class="btn">⬇ Network PNG</button>
+          </div>
+        </div>
+
+        <div id="tab-interact" class="tabpane hidden">
+          <div class="interact-layout">
+            <div class="agent-pane">
+              <h3 data-i18n="events">Events</h3>
+              <p class="hint hint-inline" data-i18n="explainHint">Pick an event to discuss it with Wanion · it can grow the web around it, and you can edit any node.</p>
+              <ul id="node-list" class="agent-list"></ul>
+            </div>
+            <div class="chat">
+              <div id="node-actions" class="node-actions hidden"></div>
+              <div id="chat-profile" class="chat-profile"></div>
+              <div id="conn-list" class="conn-list"></div>
+              <div id="chat-log" class="chat-log"></div>
+              <div id="node-derivation" class="node-derivation hidden">
+                <div class="nd-head"><span class="nd-title">🧮 Mathematical derivation</span><span class="nd-source"></span></div>
+                <div class="nd-formula" id="nd-formula"></div>
+                <div class="nd-expl" id="nd-expl"></div>
+                <div class="nd-err" id="nd-err"></div>
+              </div>
+              <div class="chat-input">
+                <input id="chat-input" type="text" data-i18n-ph="chatPlaceholder" placeholder="Ask about this event, or propose a “what if”…" autocomplete="off">
+                <button id="chat-send" class="btn btn-primary" data-i18n="send">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-math" class="tabpane hidden">
+          <div class="math-toolbar">
+            <div class="math-head">
+              <h3 id="math-title" class="math-title">Mathematical derivation</h3>
+              <span id="math-status" class="math-status">Max-times causal propagation</span>
+            </div>
+            <div class="math-controls">
+              <button id="math-prev" class="btn">◀ <span data-i18n="prev">Previous</span></button>
+              <button id="math-play" class="btn">▶ Play</button>
+              <button id="math-next" class="btn"><span data-i18n="next">Next</span> ▶</button>
+              <button id="math-replay" class="btn">↻ <span data-i18n="replay">Replay</span></button>
+              <span id="math-stepcount" class="math-stepcount">Step 0 / 0</span>
+            </div>
+          </div>
+          <div id="math-canvas" class="math-canvas"></div>
+        </div>
+      </section>
+    </section>
+
+    <div id="trajectory" class="trajectory hidden">
+      <div class="trajectory-head">
+        <span class="trajectory-title">⚡ Live Trajectory</span>
+        <span id="trajectory-count" class="trajectory-count"></span>
+        <span id="trajectory-state" class="trajectory-state"></span>
+        <button id="trajectory-clear" class="btn btn-ghost btn-tiny" data-i18n="clear">clear</button>
+      </div>
+      <div id="trajectory-list" class="trajectory-list"></div>
+    </div>
+  </main>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 data-i18n="llmSettings">LLM provider settings</h3>
+        <button id="settings-close" class="btn btn-icon">✕</button>
+      </div>
+      <p class="hint" data-i18n="llmSettingsHint">Connect Wanion to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.</p>
+      <label class="field">Provider
+        <select id="llm-provider">
+          <option value="custom">Custom</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="qwen">Qwen (DashScope)</option>
+          <option value="ollama">Ollama (local)</option>
+          <option value="lmstudio">LM Studio (local)</option>
+        </select>
+      </label>
+      <label class="field">Base URL
+        <input id="llm-base" type="text" placeholder="https://api.deepseek.com/v1" autocomplete="off">
+      </label>
+      <label class="field">Model
+        <input id="llm-model" type="text" placeholder="deepseek-chat" autocomplete="off">
+      </label>
+      <label class="field">API key
+        <input id="llm-key" type="password" placeholder="sk-…" autocomplete="off">
+      </label>
+      <label class="field"><span data-i18n="reasoningLevel">Reasoning level</span>
+        <select id="llm-reasoning">
+          <option value="">Auto (default)</option>
+          <option value="low">Low · ~2 min</option>
+          <option value="medium">Medium · ~5 min</option>
+          <option value="high">High · ~15 min</option>
+          <option value="extra">Extra · ~30 min</option>
+          <option value="max">Max · ~3 h</option>
+          <option value="ultra max">Ultra Max · ~4 h</option>
+        </select>
+      </label>
+      <div class="grid2">
+        <label class="field">Auth type
+          <select id="llm-auth">
+            <option value="bearer">Bearer token</option>
+            <option value="api-key">Custom header (x-api-key)</option>
+            <option value="none">None (local)</option>
+          </select>
+        </label>
+        <label class="field">Endpoint path
+          <input id="llm-endpoint" type="text" placeholder="/chat/completions" autocomplete="off">
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="llm-test" class="btn" data-i18n="llmTest">Test connection</button>
+        <button id="llm-save" class="btn btn-primary" data-i18n="llmSave">Save</button>
+      </div>
+      <div id="llm-status" class="status"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    window.PALETTE_LIGHT = { bg:"#F5F4F0", panel:"#FFFFFF", panel2:"#F1EFEA", border:"#DDD9D0", text:"#1F2320", muted:"#6E746B", accent:"#3E6B4F", accentRGB:[62,107,79], accent2:"#33563F", pos:"#27AE60", neg:"#EB5757", neutral:"#95A5A6", root:"#2F80ED", intervention:"#9B51E0", amber:"#9A6B3A", amberRGB:[154,107,58], axis:"#DDD9D0", axisText:"#6E746B", grid:"rgba(221,217,208,.6)", zeroLine:"rgba(110,116,107,.4)", label:"#1F2320", cardBg:"rgba(255,255,255,.97)", cardBorder:"#DDD9D0", edgeRGB:[134,140,130], negRGB:[180,85,77] };
+    window.PALETTE_DARK = { bg:"#141716", panel:"#212522", panel2:"#272C28", border:"#333A35", text:"#E6E9E4", muted:"#9BA39B", accent:"#6FA57C", accentRGB:[111,165,124], accent2:"#55855F", pos:"#43D17E", neg:"#F87171", neutral:"#B4BAB4", root:"#4FA3F7", intervention:"#C58AF0", amber:"#D9A558", amberRGB:[217,165,88], axis:"#333A35", axisText:"#9BA39B", grid:"rgba(51,58,53,.6)", zeroLine:"rgba(155,163,155,.4)", label:"#E6E9E4", cardBg:"rgba(33,37,34,.97)", cardBorder:"#333A35", edgeRGB:[110,118,112], negRGB:[224,131,121] };
+    window.PALETTE = Object.assign({}, window.PALETTE_LIGHT);
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script src="network.js"></script>
+  <script src="mathviz.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

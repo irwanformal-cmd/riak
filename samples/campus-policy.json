@@ -1,0 +1,7 @@
+{
+  "id": "sample-campus-policy",
+  "name": "Campus Policy — Tuition Reform",
+  "description": "A university announces a tuition and curriculum reform; students, faculty, and the public react.",
+  "seed_text": "A major university announces a tuition reform that raises fees for some programs while adding new scholarships. Student leaders criticize the plan, saying it burdens low-income families. Several professors support the reform, arguing it will fund better facilities and research. Local residents worry that higher costs will push students away. A student union spokesperson said \"we oppose the fee increase because it hurts ordinary families\". A prominent professor praised the reform as \"necessary for the university's future\". Media coverage is divided, and online discussion is growing heated. The government has not yet commented.",
+  "config": {"agents": 26, "rounds": 36}
+}

@@ -1,0 +1,7 @@
+{
+  "id": "sample-labor-strike",
+  "name": "Labor Dispute — Factory Strike",
+  "description": "Workers strike for wages and safety; management, local businesses, and the government react.",
+  "seed_text": "Workers at a major factory go on strike demanding higher wages and safer conditions. Management says the company cannot afford the raises. The union leader declared \"we will not back down\". Local businesses fear the strike will hurt the economy. Some residents sympathize with workers, while others blame them for the disruption. An economist warns a prolonged strike could trigger layoffs. The government is considering mediation.",
+  "config": {"agents": 22, "rounds": 32}
+}

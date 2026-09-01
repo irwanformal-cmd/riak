@@ -1,0 +1,7 @@
+{
+  "id": "sample-vaccine-mandate",
+  "name": "Public Health — Vaccine Mandate",
+  "description": "A mandatory vaccination program during an outbreak splits citizens, doctors, and liberty advocates.",
+  "seed_text": "A country rolls out a mandatory vaccination program for all adults during an outbreak. Many citizens support it to protect the vulnerable. A vocal minority opposes it, citing personal freedom. Healthcare workers are exhausted but mostly supportive. A top doctor urged everyone to get vaccinated \"for the common good\". A civil-liberties lawyer criticized the mandate as government overreach. Religious groups and skeptics spread doubt online, and protests are growing.",
+  "config": {"agents": 26, "rounds": 34}
+}
