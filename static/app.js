@@ -276,8 +276,19 @@ const state = {
   compare: { scenarios: [] },
   nodeQuery: "",
   selectedNodeId: null,
+  chatHistory: {},   // node_id -> [{who: "user"|"agent", text}] — survives node switching
   trajTimer: null, trajJob: null, trajSeen: 0,
 };
+
+function _chatLog(nodeId) { return state.chatHistory[nodeId] || (state.chatHistory[nodeId] = []); }
+
+function _renderChatLog(nodeId) {
+  const log = $("#chat-log");
+  log.innerHTML = _chatLog(nodeId)
+    .map((m) => `<div class="msg ${m.who}"><div class="who">${m.who === "user" ? t("you") : t("aiDev")}</div>${escapeHtml(m.text)}</div>`)
+    .join("");
+  log.scrollTop = log.scrollHeight;
+}
 
 const network = new NetworkRenderer($("#network-canvas"));
 
@@ -450,6 +461,7 @@ async function loadProject(id) {
   try {
     const p = await api("/api/projects/" + id);
     state.currentProject = p;
+    state.chatHistory = {};
     state.web = p.result_web || p.web;
     state.prediction = p.prediction || null;
     state.report = p.report || null;
@@ -543,6 +555,7 @@ async function buildWorld() {
     state.currentProject = p;
     state.web = p.web; state.prediction = null; state.report = null;
     state.interventions = [];
+    state.chatHistory = {};
     const cr = $("#compare-results"); if (cr) { cr.classList.add("hidden"); cr.innerHTML = ""; }
     updateUndoRedoButtons(true, true);
     await refreshProjects();
@@ -1090,14 +1103,17 @@ async function openNodeChat(nodeId, loadExplain) {
   }
   renderNodeActions(node);
   renderConnections(node);
+  // restore the conversation for this node — switching nodes no longer wipes it
+  if (_chatLog(nodeId).length) { _renderChatLog(nodeId); return; }
   if (loadExplain !== false) {
     log.innerHTML = `<div class="msg agent"><div class="who">${t("aiDev")}</div>${t("loading")}</div>`;
     try {
       const out = await api("/api/chat", { project_id: state.currentProject.id, node_id: nodeId, lang: LANG });
-      log.innerHTML = `<div class="msg agent"><div class="who">${t("aiDev")}</div>${escapeHtml(out.reply || "")}</div>`;
+      _chatLog(nodeId).push({ who: "agent", text: out.reply || "" });
     } catch (e) {
-      log.innerHTML = `<div class="msg agent"><div class="who">${t("aiDev")}</div>${escapeHtml(e.message)}</div>`;
+      _chatLog(nodeId).push({ who: "agent", text: e.message });
     }
+    _renderChatLog(nodeId);
   }
   log.scrollTop = log.scrollHeight;
 }
@@ -1298,23 +1314,24 @@ async function sendNodeMessage() {
   if (!message || !nodeId) return;
   input.value = "";
   const log = $("#chat-log");
-  log.insertAdjacentHTML("beforeend", `<div class="msg user"><div class="who">${t("you")}</div>${escapeHtml(message)}</div>`);
+  _chatLog(nodeId).push({ who: "user", text: message });
+  _renderChatLog(nodeId);
   log.insertAdjacentHTML("beforeend", `<div class="msg agent loading"><div class="who">${t("aiDev")}</div>${t("thinking")}</div>`);
   log.scrollTop = log.scrollHeight;
   try {
     const out = await apiAsync("/api/develop", { project_id: state.currentProject.id, node_id: nodeId, message, lang: LANG });
     const loading = log.querySelector(".msg.loading");
     if (loading) loading.remove();
-    log.insertAdjacentHTML("beforeend", `<div class="msg agent"><div class="who">${t("aiDev")}</div>${escapeHtml(out.reply || "")}</div>`);
-    log.scrollTop = log.scrollHeight;
+    _chatLog(nodeId).push({ who: "agent", text: out.reply || "" });
+    _renderChatLog(nodeId);
     if (out.web) applyGraphUpdate(out.web, out.prediction);
     if (getNode(nodeId)) { openNodeChat(nodeId, false); }
     else { state.selectedNodeId = null; $("#chat-profile").innerHTML = ""; renderNodeActions(null); renderConnections(null); }
   } catch (e) {
     const loading = log.querySelector(".msg.loading");
     if (loading) loading.remove();
-    log.insertAdjacentHTML("beforeend", `<div class="msg agent"><div class="who">${t("aiDev")}</div>${escapeHtml(e.message)}</div>`);
-    log.scrollTop = log.scrollHeight;
+    _chatLog(nodeId).push({ who: "agent", text: e.message });
+    _renderChatLog(nodeId);
   }
 }
 
@@ -1412,6 +1429,7 @@ async function deleteNode(nodeId) {
   try {
     const out = await api("/api/graph", { project_id: state.currentProject.id, lang: LANG, mutations: [{ op: "remove_node", id: nodeId }] });
     if (state.selectedNodeId === nodeId) state.selectedNodeId = null;
+    delete state.chatHistory[nodeId];
     applyGraphUpdate(out.web, out.prediction);
     if (!getNode(nodeId)) { $("#chat-profile").innerHTML = ""; renderNodeActions(null); renderConnections(null); $("#chat-log").innerHTML = ""; }
     toast(t("deleted"));
