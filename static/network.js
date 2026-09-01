@@ -48,12 +48,12 @@ const STEPS_PER_FRAME = 2;
  * All knobs live here so the feel can be tuned in one place. Everything is
  * render-only: physics, hit-testing and interaction are untouched. */
 const CINE = {
-  breathe: 0.045,      // node radius oscillation (±4.5% — a heartbeat, not a bounce)
-  glowDark: 0.13,      // halo alpha behind key nodes (dark mode)
+  breathe: 0.06,      // node radius oscillation (±4.5% — a heartbeat, not a bounce)
+  glowDark: 0.22,      // halo alpha behind key nodes (dark mode)
   glowLight: 0.055,    // halo alpha (light mode — paper barely glows)
   depthSize: 0.14,     // how much pseudo-depth scales node size (±14%)
   depthAlpha: 0.22,    // how much far nodes fade
-  driftX: 9, driftY: 6,// idle camera sway amplitude (px)
+  driftX: 13, driftY: 9,// idle camera sway amplitude (px)
   idleAfterMs: 3500,   // sway starts after this much stillness
   dust: 42,            // ambient particles (dark mode only)
   pulses: 12,          // max light pulses travelling along edges
@@ -104,7 +104,7 @@ class NetworkRenderer {
     for (let i = 0; i < CINE.dust; i++) {
       s0 = (s0 * 1664525 + 1013904223) >>> 0;
       this._dust.push({ x: (s0 % 1000) / 1000, y: ((s0 >> 10) % 1000) / 1000,
-                        r: 0.6 + ((s0 >> 20) % 100) / 90, ph: ((s0 >> 8) % 628) / 100 });
+                        r: 1.0 + ((s0 >> 20) % 100) / 60, ph: ((s0 >> 8) % 628) / 100 });
     }
     // any gesture pauses the sway immediately
     const touch = () => { this._lastInteract = performance.now(); };
@@ -349,10 +349,10 @@ class NetworkRenderer {
     this._t += 1 / 60;
     // idle sway: only when the user has been still for a while; eases in/out
     if (performance.now() - this._lastInteract > CINE.idleAfterMs && this.nodes.length) {
-      const tx = Math.sin(this._t * 0.10) * CINE.driftX;
-      const ty = Math.cos(this._t * 0.13) * CINE.driftY;
-      this._driftX += (tx - this._driftX) * 0.008;
-      this._driftY += (ty - this._driftY) * 0.008;
+      const tx = Math.sin(this._t * 0.42) * CINE.driftX;
+      const ty = Math.cos(this._t * 0.34) * CINE.driftY;
+      this._driftX += (tx - this._driftX) * 0.02;
+      this._driftY += (ty - this._driftY) * 0.02;
     } else {
       this._driftX *= 0.92;
       this._driftY *= 0.92;
@@ -465,7 +465,7 @@ class NetworkRenderer {
       this._dust.forEach((d) => {
         const dy = (d.y * h + this._t * 3 + d.ph * 10) % h;   // slow rise + wrap
         const tw = 0.5 + 0.5 * Math.sin(this._t * 0.7 + d.ph); // gentle twinkle
-        ctx.globalAlpha = 0.028 + 0.05 * tw;
+        ctx.globalAlpha = 0.07 + 0.11 * tw;
         ctx.fillStyle = rgba(acc, 1);
         ctx.beginPath();
         ctx.arc(d.x * w, dy, d.r, 0, Math.PI * 2);
@@ -534,10 +534,10 @@ class NetworkRenderer {
         const px = (1 - u) * (1 - u) * sx + 2 * (1 - u) * u * cx2 + u * u * ex;
         const py = (1 - u) * (1 - u) * sy + 2 * (1 - u) * u * cy2 + u * u * ey;
         const fade = Math.sin(u * Math.PI);   // fade in/out along the trip
-        ctx.globalAlpha = 0.55 * fade;
+        ctx.globalAlpha = 0.8 * fade;
         ctx.fillStyle = rgba(acc, 1);
         ctx.beginPath();
-        ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+        ctx.arc(px, py, 2.3, 0, Math.PI * 2);
         ctx.fill();
       });
       ctx.restore();
@@ -561,12 +561,12 @@ class NetworkRenderer {
       const key = n.type === "root" || n.type === "intervention" || topProb.has(n.id) ||
                   this.selected === n.id || this.hovered === n.id;
       if (key && !dim) {
-        const grad = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 3.4);
+        const grad = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 3.9);
         grad.addColorStop(0, rgba(this._rgbOf(col), glowA * 1.6));
         grad.addColorStop(1, rgba(this._rgbOf(col), 0));
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(x, y, r * 3.4, 0, Math.PI * 2);
+        ctx.arc(x, y, r * 3.9, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = (dim ? 0.12 : (this.selected === n.id ? 1 : 0.92)) * depthF;
