@@ -1,0 +1,24 @@
+Riak — third-party assets and attributions
+==========================================
+
+Riak itself is original code released under the MIT License (see LICENSE).
+It has NO runtime dependencies beyond the Python 3.9+ standard library.
+
+The following third-party assets are loaded at runtime via CDN:
+
+1. KaTeX (https://katex.org)
+   - Copyright (c) 2013-2020 Khan Academy and other contributors
+   - License: MIT (https://github.com/KaTeX/KaTeX/blob/main/LICENSE)
+   - Used for: rendering mathematical formulas in the Math tab
+   - If you redistribute Riak with KaTeX bundled (instead of CDN),
+     include KaTeX's LICENSE file.
+
+2. Google Fonts: Sora and Inter (https://fonts.google.com)
+   - Sora: Copyright 2019 The Sora Project Authors
+   - Inter: Copyright (c) 2016-2020 The Inter Project Authors
+   - License: SIL Open Font License 1.1
+   - Used for: UI typography
+
+Concept acknowledgment: Riak's multi-agent simulation concept was inspired
+by MiroFish (https://github.com/666ghj/MiroFish). No MiroFish code is used;
+Riak is an independent implementation built around causal event webs.

@@ -1,10 +1,17 @@
 <div align="center">
 
-# ◈ Riak
+<img src="assets/logo.png" alt="Riak logo" width="120">
+
+# Riak
 
 **A self-contained causal prediction engine.**
 
 *Paste a scenario — Riak maps the web of consequences and computes the most likely outcome chain.*
+
+[![tests](https://github.com/USERNAME/riak/actions/workflows/test.yml/badge.svg)](https://github.com/USERNAME/riak/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python: 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org)
+[![dependencies: zero](https://img.shields.io/badge/dependencies-zero-brightgreen.svg)](#key-properties)
 
 [English](#english) · [Bahasa Indonesia](#bahasa-indonesia)
 
@@ -149,15 +156,43 @@ python3 test_causal.py        # engine validator & integration
 python3 test_mech.py          # quantitative mechanisms
 python3 test_determinism.py   # same seed → identical web (advertised property)
 python3 test_api.py           # HTTP endpoint integration
+python3 test_llm_cache.py     # LLM cache (incl. concurrency regression)
 python3 backtest.py           # historical-scenario scorecard (hit@6, Brier)
 ```
 
 All suites run in CI via GitHub Actions (Python 3.9 + 3.12).
 
+### Docker
+
+```bash
+docker build -t riak .
+docker run -p 8000:8000 -v riak-data:/app/data riak
+# open http://127.0.0.1:8000
+```
+
+### Roadmap
+
+Where Riak is heading — contributions and discussion welcome:
+
+- **Decision mode** — frame a question as A-vs-B and get a scored
+  recommendation, not just two predictions
+- **Reference-class forecasting** — anchor probabilities to base rates of
+  similar past events (the biggest known accuracy lever)
+- **Plugin packs + registry** — community KB/scenario/locale packs with
+  one-click install (PR-curated, no marketplace infra)
+- **URL import** — paste a news link as the scenario seed
+- **Prediction tracking** — re-run a scenario over time and watch the
+  forecast drift
+- **Calibration layer** — probabilities fitted against the backtest corpus
+- **Job cancellation & in-flight LLM dedup**
+
+See [CHANGELOG.md](CHANGELOG.md) for what already shipped.
+
 ### License
 
 MIT — an original implementation, independent of the AGPL-licensed MiroFish
 codebase. The swarm-intelligence *concept* is shared; no code was copied.
+Third-party assets (KaTeX, fonts) are credited in [NOTICE](NOTICE).
 
 ---
 
@@ -213,6 +248,12 @@ langsung dari tombol **⚙** di antarmuka.
 python3 test_causal.py
 ```
 
+### Roadmap
+
+Lihat bagian [Roadmap](#roadmap) di atas — mode keputusan A-vs-B, base rates,
+plugin registry, impor URL, pelacakan prediksi, dan kalibrasi.
+
 ### Lisensi
 
 MIT — implementasi orisinal, independen dari kode MiroFish (AGPL).
+Aset pihak ketiga (KaTeX, font) dicatat di [NOTICE](NOTICE).
