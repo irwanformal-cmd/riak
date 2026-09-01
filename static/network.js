@@ -103,8 +103,8 @@ class NetworkRenderer {
     let s0 = 42;            // tiny LCG — stable starfield, no Math.random flicker
     for (let i = 0; i < CINE.dust; i++) {
       s0 = (s0 * 1664525 + 1013904223) >>> 0;
-      this._dust.push({ x: (s0 % 1000) / 1000, y: ((s0 >> 10) % 1000) / 1000,
-                        r: 1.0 + ((s0 >> 20) % 100) / 60, ph: ((s0 >> 8) % 628) / 100 });
+      this._dust.push({ x: (s0 % 1000) / 1000, y: ((s0 >>> 10) % 1000) / 1000,
+                        r: 1.0 + ((s0 >>> 20) % 100) / 60, ph: ((s0 >>> 8) % 628) / 100 });
     }
     // any gesture pauses the sway immediately
     const touch = () => { this._lastInteract = performance.now(); };
