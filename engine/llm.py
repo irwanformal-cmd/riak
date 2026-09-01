@@ -815,7 +815,8 @@ def build_subtree(root_text: str, topic: str, depth: int, branching: int,
                 f"Peristiwa akar: {root_text}\nKonteks skenario: {topic}\n\n"
                 f"Jawab STRICT satu objek JSON bersarang persis seperti:\n{schema}\n\n"
                 f"Aturan: frasa singkat dan konkret; tiap anak HARUS akibat langsung dari "
-                f"induknya; likelihood 0-1; polarity -1 (buruk) s/d 1 (baik); relation salah "
+                f"induknya; likelihood = PELUANG BERSYARAT bila induk terjadi (0.7-0.95 untuk "
+                f"yang hampir pasti, 0.4-0.7 untuk yang mungkin); polarity -1 (buruk) s/d 1 (baik); relation salah "
                 f"satu dari causes|amplifies|reduces|prevents|triggers; lebih sedikit anak "
                 f"tidak apa-apa jika ragu; capai {depth} level penuh.")
     else:
@@ -825,7 +826,8 @@ def build_subtree(root_text: str, topic: str, depth: int, branching: int,
                 f"Reply STRICTLY as ONE nested JSON object exactly like:\n{schema}\n\n"
                 f"Rules: short concrete phrases; every child MUST be a DIRECT consequence of "
                 f"its parent; mechanism = the DIRECT causal mechanism from its parent; "
-                f"likelihood 0-1; polarity -1 (bad) to 1 (good); relation one of "
+                f"likelihood = CONDITIONAL probability given the parent happens (0.7-0.95 for "
+                f"near-certain effects, 0.4-0.7 for plausible ones); polarity -1 (bad) to 1 (good); relation one of "
                 f"causes|amplifies|reduces|prevents|triggers; fewer children is fine when "
                 f"uncertain; reach the full {depth} levels.")
     reply = chat([{"role": "system", "content": "You are RIAK, a causal simulation engine. Output STRICT JSON only."},
