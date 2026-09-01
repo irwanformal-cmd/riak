@@ -55,6 +55,15 @@ _DEFAULTS = {
     "distance_km": 5.0,       # commute, assumed
     "rain_speed_reduction": 0.3,  # rain cuts effective speed by ~30%, assumed
     "reaction_time_s": 1.5,
+    "population": 10000.0,        # closed population, assumed
+    "initial_infected": 10.0,     # index cases, assumed
+    "beta": 0.3,                  # transmission rate, assumed
+    "gamma": 0.1,                 # recovery rate, assumed
+    "price_change_pct": 10.0,     # price shock, assumed
+    "elasticity": -0.8,           # own-price demand elasticity, assumed
+    "initial_value": 1000.0,      # starting capital/population, assumed
+    "growth_rate_pct": 5.0,       # growth per period, assumed
+    "periods": 10.0,              # horizon, assumed
 }
 
 
@@ -285,11 +294,170 @@ def assumption_based(parent_state: dict, spec: dict, parent: dict) -> dict | Non
     }
 
 
+def sir_epidemic(parent_state: dict, spec: dict, parent: dict) -> dict | None:
+    """Basic SIR epidemic: dS/dt = -beta*S*I/N, dI/dt = beta*S*I/N - gamma*I.
+
+    The engine computes the reproduction number R0 = beta/gamma and, when
+    R0 > 1, the peak infection burden from the standard SIR invariant
+    i* = 1 - 1/R0 - ln(R0*s0)/R0 (s0 = initial susceptible fraction), plus a
+    time-to-peak estimate from the early exponential growth rate beta-gamma.
+    When R0 <= 1 there is no epidemic take-off: infections only decline."""
+    a = []
+    n = _clamp(_state_get(parent_state, "population", _DEFAULTS["population"], a, "populasi"), 1.0, 1e12)
+    i0 = _clamp(_state_get(parent_state, "initial_infected", _DEFAULTS["initial_infected"], a, "terinfeksi awal"),
+                1.0, n)  # no negative populations; at least one index case
+    beta = _clamp(_num(_pick(parent_state, spec, "beta", _DEFAULTS["beta"]), _DEFAULTS["beta"]), 0.0, 10.0)
+    gamma = _clamp(_num(_pick(parent_state, spec, "gamma", _DEFAULTS["gamma"]), _DEFAULTS["gamma"]), 1e-6, 10.0)
+    r0 = beta / gamma
+    s0 = _clamp((n - i0) / n, 0.0, 1.0)
+    uncertainty = 0.35 if a else 0.15
+    child_state = dict(parent_state)
+    child_state["population"] = round(n, 0)
+    child_state["initial_infected"] = round(i0, 0)
+    child_state["beta"] = round(beta, 3)
+    child_state["gamma"] = round(gamma, 3)
+    child_state["R0"] = round(r0, 2)
+    if r0 <= 1.0:
+        # sub-critical: I(t) decays from the start; the 'peak' is the seeding itself
+        child_state["peak_infected"] = round(i0, 0)
+        child_state["peak_time_days"] = 0.0
+        text = (f"R0 = {r0:.2f} < 1: wabah tidak berkembang; infeksi meluruh dari "
+                f"{i0:.0f} kasus awal (ambang herd immunity sudah terlampaui)")
+        return {
+            "child_state": child_state,
+            "child_text": text,
+            "probability": _prob(0.75, uncertainty),
+            "formula_latex": r"R_0=\frac{\beta}{\gamma}\le 1\;\Rightarrow\;\frac{dI}{dt}<0",
+            "formula_plain": f"R0 = beta/gamma = {beta}/{gamma} = {r0:.2f} <= 1 -> no epidemic take-off",
+            "uncertainty": uncertainty,
+            "assumptions": a,
+            "mechanism": "penularan di bawah ambang reproduksi: tiap kasus menggantikan < 1 kasus baru",
+            "domain": "epidemiological",
+            "scale": "population",
+            "operator": "sir_epidemic",
+        }
+    # invariant of motion: s + i - (1/R0) ln s = const -> peak at s* = 1/R0
+    i_peak_frac = _clamp(1.0 - 1.0 / r0 - math.log(r0 * s0) / r0, 0.0, 1.0)
+    peak_infected = _clamp(i_peak_frac * n, i0, n)
+    growth = beta - gamma  # early exponential growth rate (per day)
+    t_peak = math.log(max(peak_infected, 1.0) / i0) / growth if growth > 0 else 0.0
+    child_state["peak_infected"] = round(peak_infected, 0)
+    child_state["peak_infected_pct"] = round(i_peak_frac * 100.0, 1)
+    child_state["peak_time_days"] = round(t_peak, 1)
+    text = (f"R0 = {r0:.2f} > 1: puncak wabah ≈ {peak_infected:.0f} terinfeksi "
+            f"({i_peak_frac * 100:.0f}% populasi) sekitar hari ke-{t_peak:.0f}")
+    return {
+        "child_state": child_state,
+        "child_text": text,
+        "probability": _prob(0.7, uncertainty),
+        "formula_latex": (r"R_0=\frac{\beta}{\gamma},\quad "
+                          r"i^{*}\approx 1-\frac{1}{R_0}-\frac{\ln(R_0 s_0)}{R_0},\quad "
+                          r"t_{\text{peak}}\approx\frac{\ln(i^{*}N/I_0)}{\beta-\gamma}"),
+        "formula_plain": (f"R0={r0:.2f}; i*={i_peak_frac:.3f} -> peak≈{peak_infected:.0f} "
+                          f"of {n:.0f} at t≈{t_peak:.0f} days"),
+        "uncertainty": uncertainty,
+        "assumptions": a,
+        "mechanism": "SIR: penularan (beta) melawan pemulihan (gamma); puncak saat S turun ke N/R0",
+        "domain": "epidemiological",
+        "scale": "population",
+        "operator": "sir_epidemic",
+    }
+
+
+def price_elasticity(parent_state: dict, spec: dict, parent: dict) -> dict | None:
+    """Demand response to a price change: ΔQ% = elasticity × ΔP%.
+
+    Revenue response uses the exact compounding form
+    ΔR/R = (1+ΔP)(1+ΔQ) - 1 ≈ ΔP(1+ε) — elastic demand (|ε|>1) means a price
+    rise cuts revenue, inelastic demand means it raises revenue."""
+    a = []
+    dp = _num(_pick(parent_state, spec, "price_change_pct", _DEFAULTS["price_change_pct"]),
+              _DEFAULTS["price_change_pct"])
+    if "price_change_pct" not in parent_state and "price_change_pct" not in spec:
+        a.append(f"perubahan harga = {dp:.0f}% (asumsi, data tidak tersedia)")
+    elast = _num(_pick(parent_state, spec, "elasticity", _DEFAULTS["elasticity"]),
+                 _DEFAULTS["elasticity"])
+    if "elasticity" not in parent_state and "elasticity" not in spec:
+        a.append(f"elastisitas = {elast} (asumsi, data tidak tersedia)")
+    dq = _clamp(elast * dp, -100.0, 1e4)  # quantity demanded cannot fall below zero
+    rev_change = ((1.0 + dp / 100.0) * (1.0 + dq / 100.0) - 1.0) * 100.0
+    uncertainty = 0.3 if a else 0.1
+    child_state = dict(parent_state)
+    child_state["price_change_pct"] = round(dp, 2)
+    child_state["elasticity"] = round(elast, 3)
+    child_state["quantity_change_pct"] = round(dq, 2)
+    child_state["revenue_change_pct"] = round(rev_change, 2)
+    arah = "naik" if rev_change >= 0 else "turun"
+    text = (f"harga {'+' if dp >= 0 else ''}{dp:.0f}% -> permintaan "
+            f"{'+' if dq >= 0 else ''}{dq:.1f}% (ε={elast}); pendapatan {arah} "
+            f"≈ {abs(rev_change):.1f}%")
+    return {
+        "child_state": child_state,
+        "child_text": text,
+        "probability": _prob(0.72, uncertainty),
+        "formula_latex": (r"\frac{\Delta Q}{Q}=\varepsilon\,\frac{\Delta P}{P},\quad "
+                          r"\frac{\Delta R}{R}\approx\frac{\Delta P}{P}\,(1+\varepsilon)"),
+        "formula_plain": (f"dQ% = {elast}*{dp:.1f}% = {dq:.1f}%; "
+                          f"dR% = (1+{dp / 100:.3f})(1+{dq / 100:.4f})-1 = {rev_change:.1f}%"),
+        "uncertainty": uncertainty,
+        "assumptions": a,
+        "mechanism": "elastisitas harga: kenaikan harga menekan kuantitas; arah pendapatan tergantung |ε|",
+        "domain": "economic",
+        "scale": "market",
+        "operator": "price_elasticity",
+    }
+
+
+def compound_growth(parent_state: dict, spec: dict, parent: dict) -> dict | None:
+    """Compound growth over n periods: F = P (1 + r)^n.
+
+    Applies to investment, population, or any stock growing at a steady
+    percentage rate; the engine reports the final value and the total
+    growth multiple."""
+    a = []
+    p0 = _clamp(_state_get(parent_state, "initial_value", _DEFAULTS["initial_value"], a, "nilai awal"),
+                0.0, 1e15)
+    r_pct = _num(_pick(parent_state, spec, "growth_rate_pct", _DEFAULTS["growth_rate_pct"]),
+                 _DEFAULTS["growth_rate_pct"])
+    if "growth_rate_pct" not in parent_state and "growth_rate_pct" not in spec:
+        a.append(f"laju pertumbuhan = {r_pct:.1f}%/periode (asumsi, data tidak tersedia)")
+    n = _clamp(_num(_pick(parent_state, spec, "periods", _DEFAULTS["periods"]),
+                    _DEFAULTS["periods"]), 0.0, 1e4)
+    r = _clamp(r_pct / 100.0, -1.0, 10.0)
+    final = p0 * (1.0 + r) ** n
+    total_pct = ((final / p0) - 1.0) * 100.0 if p0 > 0 else 0.0
+    uncertainty = 0.3 if a else 0.1
+    child_state = dict(parent_state)
+    child_state["initial_value"] = round(p0, 2)
+    child_state["growth_rate_pct"] = round(r_pct, 3)
+    child_state["periods"] = round(n, 1)
+    child_state["final_value"] = round(final, 2)
+    child_state["total_growth_pct"] = round(total_pct, 1)
+    text = (f"pertumbuhan majemuk {r_pct:.1f}% × {n:.0f} periode: "
+            f"{p0:.0f} → {final:.0f} (total {'+' if total_pct >= 0 else ''}{total_pct:.0f}%)")
+    return {
+        "child_state": child_state,
+        "child_text": text,
+        "probability": _prob(0.85, uncertainty),
+        "formula_latex": r"F = P\,(1+r)^{n}",
+        "formula_plain": f"F = {p0:.0f}*(1+{r:.4f})^{n:.0f} = {final:.1f} ({total_pct:+.0f}% total)",
+        "uncertainty": uncertainty,
+        "assumptions": a,
+        "mechanism": "pertumbuhan eksponensial: tiap periode nilai dikali (1+r), efek bola salju",
+        "domain": "economic",
+        "scale": "individual",
+        "operator": "compound_growth",
+    }
+
+
 _OPERATORS = {
     "kinetic_braking": kinetic_braking,
     "wet_road_traction": wet_road_traction,
     "travel_time": travel_time,
     "momentum_transfer": momentum_transfer,
+    "sir_epidemic": sir_epidemic,
+    "price_elasticity": price_elasticity,
+    "compound_growth": compound_growth,
     "assumption_based": assumption_based,
 }
 

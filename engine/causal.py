@@ -1299,6 +1299,38 @@ def mecher_derive(event: str, ancestors: list[str], lang: str = "en") -> dict:
                 "explanation": expl + " (kepadatan kendaraan menurunkan aliran lalu-lintas)",
                 "assumptions": ["Model fundamental diagram"], "mechanism": "traffic_flow",
                 "units": {"density": "veh/km", "flow": "veh/h"}, "source": "mech"}
+    # quantitative operators from mech.py: run the real model, not just a template
+    low = event.lower()
+    if any(k in low for k in ("epidemic", "infection", "outbreak", "pandemic",
+                              "wabah", "infeksi", "penularan", "pandemi")):
+        d = mech.derive({"state": {}}, {"operator": "sir_epidemic"}) or {}
+        note = (" Model SIR dijalankan." if lang == "id" else " SIR model evaluated.")
+        return {"variables": ["susceptible", "infected", "recovered", "R0"],
+                "formula": d.get("formula_plain") or "R0 = beta/gamma",
+                "explanation": expl + note + " " + str(d.get("child_text") or ""),
+                "assumptions": list(d.get("assumptions") or ["Model SIR standar"]),
+                "mechanism": "sir_epidemic",
+                "units": {"population": "people", "peak_time": "days"}, "source": "mech"}
+    if any(k in low for k in ("price", "demand", "elasticity",
+                              "harga", "permintaan", "elastisitas")):
+        d = mech.derive({"state": {}}, {"operator": "price_elasticity"}) or {}
+        note = (" Model elastisitas dijalankan." if lang == "id" else " Elasticity model evaluated.")
+        return {"variables": ["price", "quantity", "revenue"],
+                "formula": d.get("formula_plain") or "dQ% = elasticity * dP%",
+                "explanation": expl + note + " " + str(d.get("child_text") or ""),
+                "assumptions": list(d.get("assumptions") or ["Elastisitas harga konstan"]),
+                "mechanism": "price_elasticity",
+                "units": {"price": "%", "quantity": "%", "revenue": "%"}, "source": "mech"}
+    if any(k in low for k in ("growth", "investment", "population", "compound",
+                              "pertumbuhan", "investasi", "populasi", "majemuk")):
+        d = mech.derive({"state": {}}, {"operator": "compound_growth"}) or {}
+        note = (" Model pertumbuhan majemuk dijalankan." if lang == "id" else " Compound growth evaluated.")
+        return {"variables": ["initial_value", "growth_rate", "periods", "final_value"],
+                "formula": d.get("formula_plain") or "F = P(1+r)^n",
+                "explanation": expl + note + " " + str(d.get("child_text") or ""),
+                "assumptions": list(d.get("assumptions") or ["Laju pertumbuhan konstan"]),
+                "mechanism": "compound_growth",
+                "units": {"growth_rate": "%/period", "periods": "periods"}, "source": "mech"}
     return {"variables": ["cause", "effect", "coupling"],
             "formula": f"{base}(effect) = alpha * f({cause[:20]})",
             "explanation": expl,

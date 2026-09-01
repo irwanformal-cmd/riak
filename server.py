@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import random
 import sys
@@ -22,6 +23,7 @@ import time
 import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from logging.handlers import RotatingFileHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -48,6 +50,55 @@ MIME = {
 
 _lock = threading.Lock()
 projects: dict[str, dict] = {}
+
+# ---------------------------------------------------------------- logging
+# Structured logs go to stderr AND a rotating server.log next to this file, so
+# production issues can be traced after the fact instead of vanishing in stdout.
+log = logging.getLogger("wanion")
+
+
+def _setup_logging() -> None:
+    if log.handlers:  # idempotent (tests may re-import)
+        return
+    log.setLevel(os.environ.get("WANION_LOG_LEVEL", "INFO").upper())
+    fmt = logging.Formatter("%(asctime)s %(levelname)-5s %(message)s")
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    log.addHandler(sh)
+    try:
+        fh = RotatingFileHandler(os.path.join(ROOT, "server.log"), maxBytes=1_000_000,
+                                 backupCount=2, encoding="utf-8")
+        fh.setFormatter(fmt)
+        log.addHandler(fh)
+    except OSError:  # a read-only dir must never block startup
+        pass
+
+
+# ------------------------------------------------------------- rate limiting
+# Token-bucket per client IP. Default 600 req/min — comfortably above the UI's
+# trajectory polling, but stops a hostile client from hammering heavy endpoints.
+_RATE: dict[str, list] = {}   # ip -> [count, window_start]
+_RATE_LIMIT = int(os.environ.get("WANION_RATE_LIMIT", "600"))
+_RATE_WINDOW = 60.0
+
+
+def _rate_ok(ip: str) -> bool:
+    now = time.time()
+    with _lock:
+        rec = _RATE.get(ip)
+        if not rec or now - rec[1] > _RATE_WINDOW:
+            _RATE[ip] = [1, now]
+            return True
+        rec[0] += 1
+        return rec[0] <= _RATE_LIMIT
+
+
+# ------------------------------------------------------------------ job store
+# Long-running endpoints (simulate/develop/projects) can be executed in the
+# background: POST with {"async": true} returns {"job_id": ...} immediately and
+# the client polls GET /api/jobs/<id> for the result. Sync stays the default.
+_jobs: dict[str, dict] = {}
+_MAX_JOBS = 200
 
 # ---- live trajectory (progress) store -------------------------------
 # Each in-flight build/simulate records steps under a job id so the UI can poll
@@ -108,7 +159,7 @@ def _load_projects():
                 continue
             projects[p["id"]] = p
         except Exception as exc:  # noqa: BLE001
-            print(f"[store] skip {fn}: {exc}")
+            log.warning("store: skip %s: %s", fn, exc)
 
 
 def _save_project(p: dict):
@@ -149,7 +200,7 @@ def _load_llm_config():
             with open(LLM_CONFIG_PATH, encoding="utf-8") as f:
                 llm.set_runtime_config(json.load(f))
         except Exception as exc:  # noqa: BLE001
-            print(f"[llm-config] load failed: {exc}")
+            log.warning("llm-config: load failed: %s", exc)
 
 
 def _save_llm_config(cfg: dict):
@@ -211,6 +262,10 @@ def handle_llm_test() -> dict:
     return {"ok": True, "reply": reply}
 
 
+def handle_llm_cache_clear(body: dict) -> dict:
+    return {"ok": True, "cleared": llm.clear_cache()}
+
+
 # ---------------------------------------------------------------- helpers
 def _project_view(p: dict) -> dict:
     # full detail view (list view is lean via list_projects())
@@ -243,7 +298,7 @@ def _load_samples() -> list[dict]:
             with open(os.path.join(SAMPLES_DIR, fn), encoding="utf-8") as f:
                 samples.append(json.load(f))
         except Exception as exc:  # noqa: BLE001
-            print(f"[samples] skip {fn}: {exc}")
+            log.warning("samples: skip %s: %s", fn, exc)
     return samples
 
 
@@ -524,6 +579,66 @@ def _to_markdown(p: dict) -> str:
 
 
 # ---------------------------------------------------------------- http
+_POST_ROUTES = {
+    "/api/projects": "handle_create_project",
+    "/api/simulate": "handle_simulate",
+    "/api/report": "handle_report",
+    "/api/chat": "handle_chat",
+    "/api/develop": "handle_develop",
+    "/api/derive": "handle_derive",
+    "/api/graph": "handle_edit",
+    "/api/export": "handle_export",
+    "/api/llm-config": "handle_llm_config_save",
+    "/api/llm-test": "handle_llm_test",
+    "/api/llm-cache-clear": "handle_llm_cache_clear",
+}
+
+# endpoints allowed to run in the background via {"async": true}
+_ASYNC_ENDPOINTS = {"/api/projects", "/api/simulate", "/api/develop"}
+
+
+def _dispatch_post(path: str, body: dict) -> dict:
+    return globals()[_POST_ROUTES[path]](body)
+
+
+def _run_async(path: str, body: dict) -> dict:
+    """Execute a heavy endpoint on a daemon thread; client polls /api/jobs/<id>."""
+    job_id = f"a{int(time.time() * 1000)}{random.randint(100, 999)}"
+    with _lock:
+        # drop oldest finished jobs so the store stays bounded
+        if len(_jobs) >= _MAX_JOBS:
+            done = sorted((j for j in _jobs.values() if j["status"] != "running"),
+                          key=lambda j: j.get("finished", 0))
+            for j in done[: len(_jobs) - _MAX_JOBS + 1]:
+                _jobs.pop(j["id"], None)
+        _jobs[job_id] = {"id": job_id, "status": "running", "started": time.time(),
+                         "finished": None, "result": None, "error": None}
+
+    def work():
+        try:
+            out = _dispatch_post(path, body)
+            with _lock:
+                _jobs[job_id].update(status="done", result=out, finished=time.time())
+        except Exception as exc:  # noqa: BLE001 — surfaced via the job record
+            log.error("async job %s failed\n%s", job_id, traceback.format_exc())
+            with _lock:
+                _jobs[job_id].update(status="error", error=str(exc), finished=time.time())
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"job_id": job_id, "status": "running"}
+
+
+_MAX_BODY = 2 * 1024 * 1024   # 2 MB — scenarios are text; anything bigger is abuse
+
+
+class _HttpError(Exception):
+    """An error that maps to a specific HTTP status code."""
+
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "Wanion/0.1"
 
@@ -548,6 +663,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _read_body(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
+        if length > _MAX_BODY:
+            raise _HttpError(413, f"payload too large (max {_MAX_BODY // 1024} KB)")
         if not length:
             return {}
         raw = self.rfile.read(length)
@@ -560,6 +677,9 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         method = self.command
+
+        if not _rate_ok(self.client_address[0]):
+            return self._send_json({"error": "rate limit exceeded — slow down"}, 429)
 
         if method == "OPTIONS":
             self.send_response(204)
@@ -580,6 +700,7 @@ class Handler(BaseHTTPRequestHandler):
                 "llm_failed": causal._llm_failed,
                 "llm_calls": causal._llm_calls,
                 "llm_budget": causal._LLM_BUDGET,
+                "llm_cache": llm.cache_stats(),
                 "llm_last_error": (llm.get_last_error() or "")[:200],
             })
         if path == "/api/llm-config" and method == "GET":
@@ -607,39 +728,32 @@ class Handler(BaseHTTPRequestHandler):
                     if not p:
                         return self._send_json({"error": "project not found"}, 404)
                     return self._send_json(_project_view(p))
+                if path.startswith("/api/jobs/"):
+                    jid = path.rsplit("/", 1)[-1]
+                    with _lock:
+                        j = _jobs.get(jid)
+                        rec = dict(j) if j else None
+                    if rec is None:
+                        return self._send_json({"error": "job not found"}, 404)
+                    return self._send_json(rec)
                 return self._send_json({"error": "not found"}, 404)
 
             if method != "POST":
                 return self._send_json({"error": "method not allowed"}, 405)
             try:
                 body = self._read_body()
-                if path == "/api/projects":
-                    out = handle_create_project(body)
-                elif path == "/api/simulate":
-                    out = handle_simulate(body)
-                elif path == "/api/report":
-                    out = handle_report(body)
-                elif path == "/api/chat":
-                    out = handle_chat(body)
-                elif path == "/api/develop":
-                    out = handle_develop(body)
-                elif path == "/api/derive":
-                    out = handle_derive(body)
-                elif path == "/api/graph":
-                    out = handle_edit(body)
-                elif path == "/api/export":
-                    out = handle_export(body)
-                elif path == "/api/llm-config":
-                    out = handle_llm_config_save(body)
-                elif path == "/api/llm-test":
-                    out = handle_llm_test()
-                else:
+                if path not in _POST_ROUTES:
                     return self._send_json({"error": "not found"}, 404)
+                if body.get("async") and path in _ASYNC_ENDPOINTS:
+                    return self._send_json(_run_async(path, body), 202)
+                out = _dispatch_post(path, body)
                 return self._send_json(out)
+            except _HttpError as exc:
+                return self._send_json({"error": str(exc)}, exc.status)
             except ValueError as exc:
                 return self._send_json({"error": str(exc)}, 400)
             except Exception as exc:  # noqa: BLE001
-                traceback.print_exc()
+                log.error("unhandled error on %s %s\n%s", method, path, traceback.format_exc())
                 return self._send_json({"error": f"server error: {exc}"}, 500)
 
         # static
@@ -668,11 +782,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._route()
 
-    def log_message(self, fmt, *args):  # quieter logs
-        print(f"[http] {self.address_string()} {fmt % args}")
+    def log_message(self, fmt, *args):  # per-request noise goes to DEBUG
+        log.debug("http %s %s", self.address_string(), fmt % args)
 
 
 def main():
+    _setup_logging()
     _load_dotenv()
     _load_projects()
     _load_llm_config()

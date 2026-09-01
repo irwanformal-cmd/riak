@@ -14,15 +14,81 @@ falls back to its deterministic rule-based engine — the app always runs.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import threading
 import urllib.request
 
 from . import trajectory
 
 _runtime: dict = {}
 _last_error: str = ""
+
+# --------------------------------------------------------------- response cache
+# Identical prompts (same model, messages, temperature, reasoning effort) hit the
+# provider only once — re-running a seed or rebuilding a web becomes instant and
+# free. Persisted to data/llm_cache.json, capped, thread-safe.
+_CACHE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "data", "llm_cache.json")
+_CACHE_MAX = 500
+_cache_lock = threading.Lock()
+_cache: dict | None = None        # lazy-loaded {key: content}
+_cache_stats = {"hits": 0, "misses": 0}
+
+
+def _cache_load() -> dict:
+    global _cache
+    with _cache_lock:
+        if _cache is None:
+            _cache = {}
+            try:
+                with open(_CACHE_PATH, encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    _cache = data
+            except Exception:  # noqa: BLE001 — a corrupt cache just starts empty
+                pass
+        return _cache
+
+
+def _cache_save() -> None:
+    try:
+        os.makedirs(os.path.dirname(_CACHE_PATH), exist_ok=True)
+        tmp = _CACHE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_cache, f, ensure_ascii=False)
+        os.replace(tmp, _CACHE_PATH)
+    except Exception:  # noqa: BLE001 — caching is best-effort
+        pass
+
+
+def cache_stats() -> dict:
+    _cache_load()
+    return {"entries": len(_cache or {}), **_cache_stats}
+
+
+def clear_cache() -> int:
+    """Drop all cached responses; returns how many entries were removed."""
+    global _cache
+    with _cache_lock:
+        n = len(_cache_load())
+        _cache = {}
+        _cache_save()
+        return n
+
+
+def _cache_key(c: dict, messages: list[dict], temperature: float | None,
+               max_tokens: int | None) -> str:
+    payload = {
+        "u": c["base_url"], "m": c["model"], "msgs": messages,
+        "t": c["temperature"] if temperature is None else temperature,
+        "x": c["max_tokens"] if max_tokens is None else max_tokens,
+        "r": c.get("reasoning_effort") or "",
+    }
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                          .encode("utf-8")).hexdigest()
 
 
 def set_runtime_config(cfg: dict | None):
@@ -152,6 +218,16 @@ def chat(messages: list[dict], temperature: float | None = None, max_tokens: int
     if c.get("level_timeout"):
         eff_timeout = max(eff_timeout, c["level_timeout"])
 
+    # cache lookup: identical calls never hit the provider twice
+    key = _cache_key(c, messages, temperature, max_tokens)
+    with _cache_lock:
+        cached = _cache_load().get(key)
+    if cached is not None:
+        _cache_stats["hits"] += 1
+        trajectory.push("llm_done", f"{detail or 'LLM call'} (cached)", model=c.get("model") or "?", ok=True)
+        return cached
+    _cache_stats["misses"] += 1
+
     def _send(pl: dict) -> str | None:
         body = json.dumps(pl).encode("utf-8")
         req = urllib.request.Request(body_url, data=body, headers=headers, method="POST")
@@ -170,10 +246,21 @@ def chat(messages: list[dict], temperature: float | None = None, max_tokens: int
                 content = reasoning.strip()
         return content or None
 
+    def _store(content: str | None) -> str | None:
+        if content:
+            with _cache_lock:
+                cache = _cache_load()
+                if key not in cache:
+                    cache[key] = content
+                    while len(cache) > _CACHE_MAX:  # FIFO eviction (dicts keep order)
+                        cache.pop(next(iter(cache)))
+                    _cache_save()
+        return content
+
     try:
         content = _send(payload)
         trajectory.push("llm_done", detail or "LLM call", model=c.get("model") or "?", ok=True)
-        return content
+        return _store(content)
     except Exception as exc:  # noqa: BLE001 — never let LLM failures break the app
         # some providers reject unknown params (reasoning_effort) with a 400 —
         # retry once without it, keeping the level's generous timeout.
@@ -181,7 +268,7 @@ def chat(messages: list[dict], temperature: float | None = None, max_tokens: int
             try:
                 content = _send({k: v for k, v in payload.items() if k != "reasoning_effort"})
                 trajectory.push("llm_done", detail or "LLM call", model=c.get("model") or "?", ok=True)
-                return content
+                return _store(content)
             except Exception as exc2:  # noqa: BLE001
                 exc = exc2
         global _last_error
