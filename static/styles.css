@@ -95,6 +95,14 @@ h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
   color: var(--brand);
   line-height: 1.1;
 }
+.tagline {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  letter-spacing: .05em;
+  margin-top: 1px;
+}
+.topbar-right .badge { cursor: default; }
 .accent { color: var(--accent); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 

@@ -17,7 +17,12 @@
       <span class="logo"><svg width="32" height="32" viewBox="0 0 100 100" fill="none" aria-hidden="true"><circle cx="50" cy="50" r="20" stroke="currentColor" stroke-width="5" opacity=".85" stroke-linecap="round" stroke-dasharray="102 24" transform="rotate(-30 50 50)"/><circle cx="50" cy="50" r="32" stroke="currentColor" stroke-width="4.4" opacity=".55" stroke-linecap="round" stroke-dasharray="166 35" transform="rotate(70 50 50)"/><circle cx="50" cy="50" r="43" stroke="currentColor" stroke-width="3.6" opacity=".3" stroke-linecap="round" stroke-dasharray="228 43" transform="rotate(165 50 50)"/><circle cx="50" cy="50" r="8.5" fill="currentColor"/><circle cx="68.8" cy="43.2" r="4.6" fill="currentColor"/><circle cx="29.4" cy="25.5" r="4" fill="currentColor" opacity=".85"/><circle cx="39.1" cy="80.1" r="3.6" fill="currentColor" opacity=".7"/><circle cx="57.5" cy="7.7" r="3" fill="currentColor" opacity=".5"/></svg></span>
       <div class="brand-text">
         <h1>riak</h1>
+        <span class="tagline" data-i18n="tagline">causal prediction engine</span>
       </div>
+    </div>
+    <div class="topbar-right">
+      <div id="llm-badge" class="badge badge-off" title="LLM status">⋯</div>
+      <button id="settings-btn-top" class="btn btn-icon" title="Settings">⚙</button>
     </div>
   </header>
 
@@ -32,7 +37,6 @@
       <section class="panel sidebar-settings">
         <h2 data-i18n="settings">Settings</h2>
         <button id="settings-btn" class="btn btn-block">⚙ <span data-i18n="llmSettings">LLM provider settings</span></button>
-        <div id="llm-badge" class="badge badge-off">⋯</div>
         <label class="settings-item">
           <span data-i18n="language">Language</span>
           <select id="lang" class="lang-select">
