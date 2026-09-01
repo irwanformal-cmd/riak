@@ -73,7 +73,7 @@ const I18N = {
     outcome: "Hasil paling mungkin", confidence: "keyakinan", keyFindings: "Hasil utama",
     summary: "Prediksi", chain: "Jalur paling mungkin", outcomes: "Hasil teratas", web: "Jaring sebab-akibat",
     generatedBy: "Konsekuensi dinalar oleh", ruleBased: "mesin berbasis aturan", llm: "model bahasa",
-    networkHint: "Setiap node = kejadian/konsekuensi · garis berarti “menyebabkan” · seret untuk geser · scroll untuk zoom · klik untuk lihat · klik ganda untuk diskusi · ⛓ menghubungkan dua node",
+    networkHint: "Setiap node = kejadian/konsekuensi · garis berarti “menyebabkan” · seret untuk geser · scroll untuk zoom · klik untuk lihat · klik ganda untuk diskusi · ⇄ menghubungkan dua node",
     explainHint: "Pilih sebuah peristiwa untuk mendiskusikannya dengan Riak · ia bisa mengembangkan jaring di sekitarnya, dan kamu bisa mengedit node apa pun.",
     chatPlaceholder: "Tanyakan tentang peristiwa ini, atau ajukan “bagaimana jika”…",
     send: "Kirim", you: "Kamu", aiDev: "Riak", rename: "Ganti nama", delete: "Hapus",
