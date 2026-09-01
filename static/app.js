@@ -1081,12 +1081,12 @@ function drawSensSpark(canvas, pts) {
   const y0 = Math.min(...ys), y1 = Math.max(...ys);
   const px = (w) => 4 + ((w - x0) / Math.max(x1 - x0, 1e-9)) * (W - 8);
   const py = (c) => H - 4 - ((c - y0) / Math.max(y1 - y0, 1e-9)) * (H - 8);
-  ctx.strokeStyle = pal.accent || "#136F8F";
+  ctx.strokeStyle = pal.accent || "#1F3BB3";
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   pts.forEach((p, i) => { i ? ctx.lineTo(px(p.weight), py(p.confidence)) : ctx.moveTo(px(p.weight), py(p.confidence)); });
   ctx.stroke();
-  ctx.fillStyle = pal.accent || "#136F8F";
+  ctx.fillStyle = pal.accent || "#1F3BB3";
   pts.forEach((p) => { ctx.beginPath(); ctx.arc(px(p.weight), py(p.confidence), 1.8, 0, Math.PI * 2); ctx.fill(); });
 }
 
