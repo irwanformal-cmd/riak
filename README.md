@@ -36,9 +36,12 @@ agent stack.
 
 ### What it does
 
-1. **Map the consequences** — paste a scenario. The engine extracts the root
+1. **Map the consequences** — paste a scenario, **import it from a URL**, or
+   **upload a .txt/.md file**. The engine extracts the root
    events and expands them into a cause → effect web: what this causes, and
    what those cause next (configurable branching, depth, and node cap).
+   URL fetching is SSRF-hardened (public IPs only, per-hop redirect checks,
+   size/time caps, robots.txt respected).
 2. **Predict with confidence** — a max-times causal propagation pass scores
    every node and reports the **most likely outcome chain with a timeline**
    (when each effect materialises). A built-in **Monte-Carlo ensemble**
@@ -180,7 +183,6 @@ Where Riak is heading — contributions and discussion welcome:
   similar past events (the biggest known accuracy lever)
 - **Plugin packs + registry** — community KB/scenario/locale packs with
   one-click install (PR-curated, no marketplace infra)
-- **URL import** — paste a news link as the scenario seed
 - **Prediction tracking** — re-run a scenario over time and watch the
   forecast drift
 - **Calibration layer** — probabilities fitted against the backtest corpus

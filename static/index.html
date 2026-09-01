@@ -66,6 +66,14 @@
       <section id="step-build" class="panel step">
         <h2><span class="stepnum">1</span> <span data-i18n="buildTitle">Describe the scenario</span></h2>
         <p class="hint" data-i18n="buildHint">Paste a scenario, a decision, or a “what if” question. Riak maps out the web of consequences · what this causes, and what those cause next.</p>
+        <div class="import-row">
+          <input id="import-url" type="url" data-i18n-ph="importUrlPh" class="import-url">
+          <button id="import-fetch" class="btn btn-sm" data-i18n="importFetch">Fetch</button>
+          <label class="btn btn-sm btn-ghost import-file">
+            <span data-i18n="importFile">Upload file</span>
+            <input id="import-file-input" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" hidden>
+          </label>
+        </div>
         <textarea id="seed-text" rows="8" data-i18n-ph="seedPh"></textarea>
         <div class="row">
           <input id="project-name" type="text" data-i18n-ph="namePh">

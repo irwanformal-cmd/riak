@@ -25,7 +25,7 @@ for _k in ("LLM_BASE_URL", "LLM_MODEL_NAME", "LLM_API_KEY"):
     os.environ.pop(_k, None)
 
 import server  # noqa: E402
-from engine import llm  # noqa: E402
+from engine import fetch, llm  # noqa: E402
 
 llm.set_runtime_config({})
 
@@ -357,6 +357,55 @@ class TestAPI(unittest.TestCase):
         for _ in range(server._HEAVY_RATE_LIMIT):
             self.assertTrue(server._heavy_rate_ok(ip))
         self.assertFalse(server._heavy_rate_ok(ip))
+
+    # ---------------------------------------------------- URL import / SSRF
+    def test_fetch_url_rejects_localhost(self):
+        """The endpoint must refuse loopback targets (SSRF protection)."""
+        status, body = self._post("/api/fetch-url", {"url": "http://127.0.0.1:%d/api/health" % self.port})
+        self.assertEqual(status, 400)
+        self.assertIn("private", body.get("error", ""))
+
+    def test_fetch_url_rejects_cloud_metadata(self):
+        status, body = self._post("/api/fetch-url", {"url": "http://169.254.169.254/latest/meta-data"})
+        self.assertEqual(status, 400)
+        self.assertIn("private", body.get("error", ""))
+
+    def test_fetch_url_rejects_bad_scheme(self):
+        for url in ("file:///etc/passwd", "ftp://example.com/x", "gopher://x"):
+            status, body = self._post("/api/fetch-url", {"url": url})
+            self.assertEqual(status, 400, url)
+            self.assertIn("http", body.get("error", ""))
+
+    def test_fetch_url_requires_url(self):
+        status, body = self._post("/api/fetch-url", {})
+        self.assertEqual(status, 400)
+
+    def test_fetch_validate_url_unit(self):
+        # direct unit checks of the SSRF guard (no network needed)
+        self.assertRaises(fetch.FetchError, fetch.validate_url, "http://127.0.0.1/x")
+        self.assertRaises(fetch.FetchError, fetch.validate_url, "http://192.168.1.1/x")
+        self.assertRaises(fetch.FetchError, fetch.validate_url, "http://10.0.0.5/x")
+        self.assertRaises(fetch.FetchError, fetch.validate_url, "http://[::1]/x")
+        self.assertRaises(fetch.FetchError, fetch.validate_url, "http://169.254.169.254/")
+        self.assertRaises(fetch.FetchError, fetch.validate_url, "javascript:alert(1)")
+        # allow_private bypass is honoured (used by stub-server tests)
+        ok = fetch.validate_url("http://127.0.0.1:9/x", allow_private=True)
+        self.assertTrue(ok.startswith("http://127.0.0.1"))
+
+    def test_fetch_extract_text_unit(self):
+        raw = ("<html><head><title> Fuel prices rise </title>"
+               "<style>body{color:red}</style></head><body>"
+               "<nav>menu junk</nav><script>evil()</script>"
+               "<h1>Fuel prices rise sharply</h1>"
+               "<p>The government raised fuel prices by 30 percent overnight, "
+               "sparking immediate reactions from transport workers.</p>"
+               "<footer>junk</footer></body></html>")
+        title, text = fetch.extract_text(raw)
+        self.assertEqual(title, "Fuel prices rise")
+        self.assertIn("raised fuel prices by 30 percent", text)
+        self.assertNotIn("evil()", text)
+        self.assertNotIn("menu junk", text)
+        self.assertNotIn("color:red", text)
 
 
 if __name__ == "__main__":

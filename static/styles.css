@@ -284,6 +284,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   to { opacity: 1; transform: none; }
 }
 
+/* URL / file import row */
+.import-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: stretch; }
+.import-url {
+  flex: 1; min-width: 0; padding: 8px 10px; font-size: 12.5px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.import-url:focus { outline: 2px solid rgba(19,111,143,.35); outline-offset: 0; }
+.btn-sm { padding: 6px 12px; font-size: 12px; white-space: nowrap; }
+.import-file { cursor: pointer; display: inline-flex; align-items: center; }
+
 /* projects dropdown + empty state */
 .project-select { width: 100%; margin-top: 8px; }
 .project-empty { font-size: 11px; color: var(--muted); margin-top: 8px; }

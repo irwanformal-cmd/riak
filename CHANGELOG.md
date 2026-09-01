@@ -3,6 +3,17 @@
 All notable changes to Riak are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **URL import**: paste a link, Riak fetches the page and fills the scenario
+  box (title auto-fills the project name). SSRF-hardened: http/https only,
+  private/loopback/link-local/reserved IPs rejected at every redirect hop,
+  1 MB cap, 10 s timeout, robots.txt honoured, heavy-tier rate limited
+- **File import**: upload a local .txt/.md as the scenario seed (read fully
+  in the browser — nothing is uploaded to the server)
+- 6 new tests covering the SSRF guard and text extraction
+
 ## [1.0.0]
 
 ### Added

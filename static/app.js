@@ -8,6 +8,9 @@ const I18N = {
     buildTitle: "Describe the scenario",
     buildHint: "Paste a scenario, a decision, or a “what if” question. Riak maps out the web of consequences · what this causes, and what those cause next.",
     seedPh: "Paste your scenario here… (e.g. “the government raises fuel prices”, “a city bans private cars”)",
+    importUrlPh: "…or paste a link to an article", importFetch: "Fetch", importFile: "Upload file",
+    importing: "Fetching page…", importDone: "Imported — review and edit below.", importNeedUrl: "Paste a URL first.",
+    importTooBig: "File too large (max 100 KB).", importFail: "Could not read that file.",
     namePh: "Scenario name",
     build: "Map the consequences",
     setupTitle: "Add interventions",
@@ -51,6 +54,9 @@ const I18N = {
     buildTitle: "Jelaskan skenarionya",
     buildHint: "Tempel skenario, keputusan, atau pertanyaan “bagaimana jika”. Riak memetakan jaring konsekuensinya · apa yang ditimbulkannya, dan apa yang ditimbulkan setelahnya.",
     seedPh: "Tempel skenario di sini… (mis. “pemerintah menaikkan harga BBM”, “kota melarang mobil pribadi”)",
+    importUrlPh: "…atau tempel link artikel", importFetch: "Ambil", importFile: "Unggah file",
+    importing: "Mengambil halaman…", importDone: "Berhasil diambil — periksa dan edit di bawah.", importNeedUrl: "Tempel URL dulu.",
+    importTooBig: "File terlalu besar (maks 100 KB).", importFail: "File tidak bisa dibaca.",
     namePh: "Nama skenario",
     build: "Petakan konsekuensinya",
     setupTitle: "Tambahkan intervensi",
@@ -94,6 +100,9 @@ const I18N = {
     buildTitle: "描述场景",
     buildHint: "粘贴场景、决策或“如果”问题。Riak 会绘制出后果网络。",
     seedPh: "在此粘贴场景…",
+    importUrlPh: "…或粘贴文章链接", importFetch: "抓取", importFile: "上传文件",
+    importing: "正在抓取页面…", importDone: "已导入——请在下方检查并编辑。", importNeedUrl: "请先粘贴链接。",
+    importTooBig: "文件过大（最大 100 KB）。", importFail: "无法读取该文件。",
     namePh: "场景名称",
     build: "绘制后果", setupTitle: "添加干预",
     interventions: "干预（“如果我们这样做……”）",
@@ -454,6 +463,36 @@ async function loadProject(id) {
 }
 
 /* ------------------------------------------------------------------ build */
+/* ------------------------------------------------------- URL / file import */
+async function importFromUrl() {
+  const url = $("#import-url").value.trim();
+  if (!url) { toast(t("importNeedUrl"), true); return; }
+  setStatus("build-status", t("importing"), "loading");
+  $("#import-fetch").disabled = true;
+  try {
+    const out = await api("/api/fetch-url", { url });
+    $("#seed-text").value = out.text;
+    if (!$("#project-name").value.trim() && out.title) $("#project-name").value = out.title.slice(0, 80);
+    setStatus("build-status", t("importDone"), "ok");
+  } catch (e) { setStatus("build-status", e.message, "err"); }
+  finally { $("#import-fetch").disabled = false; }
+}
+
+function importFromFile(e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  if (f.size > 100 * 1024) { toast(t("importTooBig"), true); e.target.value = ""; return; }
+  const rd = new FileReader();
+  rd.onload = () => {
+    $("#seed-text").value = String(rd.result || "").slice(0, 8000);
+    if (!$("#project-name").value.trim()) $("#project-name").value = f.name.replace(/\.[^.]+$/, "");
+    setStatus("build-status", t("importDone"), "ok");
+  };
+  rd.onerror = () => toast(t("importFail"), true);
+  rd.readAsText(f);
+  e.target.value = "";   // allow re-picking the same file
+}
+
 async function buildWorld() {
   const seed_text = $("#seed-text").value.trim();
   if (!seed_text) { toast(t("needSeed"), true); return; }
@@ -1352,6 +1391,8 @@ async function exportData(format) {
 /* ------------------------------------------------------------------ events binding */
 function bindEvents() {
   $("#build-btn").onclick = buildWorld;
+  $("#import-fetch").onclick = importFromUrl;
+  $("#import-file-input").onchange = importFromFile;
   $("#run-btn").onclick = runSimulation;
   const _tc = $("#trajectory-clear");
   if (_tc) _tc.onclick = () => { const l = $("#trajectory-list"); if (l) l.innerHTML = ""; const c = $("#trajectory-count"); if (c) c.textContent = ""; };

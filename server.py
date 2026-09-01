@@ -27,7 +27,7 @@ from logging.handlers import RotatingFileHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from engine import causal, llm, trajectory  # noqa: E402
+from engine import causal, fetch, llm, trajectory  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT, "static")
@@ -87,7 +87,7 @@ _RATE_WINDOW = 60.0
 # ceiling than the generic one. Separate bucket per IP.
 _HEAVY_PATHS = frozenset({
     "/api/projects", "/api/simulate", "/api/develop", "/api/compare",
-    "/api/report", "/api/chat", "/api/derive",
+    "/api/report", "/api/chat", "/api/derive", "/api/fetch-url",
 })
 _HEAVY_RATE: dict[str, list] = {}
 _HEAVY_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT_HEAVY") or
@@ -330,6 +330,16 @@ def handle_llm_test() -> dict:
 
 def handle_llm_cache_clear(body: dict) -> dict:
     return {"ok": True, "cleared": llm.clear_cache()}
+
+
+def handle_fetch_url(body: dict) -> dict:
+    url = (body.get("url") or "").strip()
+    if not url:
+        raise _HttpError(400, "url is required")
+    try:
+        return fetch.fetch_url_text(url)
+    except fetch.FetchError as exc:
+        raise _HttpError(400, str(exc))
 
 
 # ---------------------------------------------------------------- helpers
@@ -865,6 +875,7 @@ _POST_ROUTES = {
     "/api/llm-config": "handle_llm_config_save",
     "/api/llm-test": "handle_llm_test",
     "/api/llm-cache-clear": "handle_llm_cache_clear",
+    "/api/fetch-url": "handle_fetch_url",
 }
 
 # endpoints allowed to run in the background via {"async": true}
