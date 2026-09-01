@@ -21,9 +21,9 @@
     </div>
     <div class="topbar-right">
       <div class="donate-wrap">
-        <button id="donate-btn" class="btn btn-donate" type="button">♥ <span data-i18n="donate">Donate</span> ▾</button>
+        <button id="donate-btn" class="btn btn-donate" type="button"><span data-i18n="donate">Donate</span> ▾</button>
         <div id="donate-menu" class="donate-menu" hidden>
-          <a href="https://buymeacoffee.com/riaksupport" target="_blank" rel="noopener">☕ Buy Me a Coffee</a>
+          <a href="https://buymeacoffee.com/riaksupport" target="_blank" rel="noopener">Buy Me a Coffee</a>
           <a href="https://saweria.co/riaksupport" target="_blank" rel="noopener">🇮🇩 Saweria</a>
         </div>
       </div>
@@ -40,7 +40,7 @@
 
       <section class="panel sidebar-settings">
         <h2 data-i18n="settings">Settings</h2>
-        <button id="settings-btn" class="btn btn-block">⚙ <span data-i18n="llmSettings">LLM provider settings</span></button>
+        <button id="settings-btn" class="btn btn-block"><span data-i18n="llmSettings">LLM provider settings</span></button>
         <div id="llm-badge" class="badge badge-off">⋯</div>
         <label class="settings-item">
           <span data-i18n="language">Language</span>
@@ -81,7 +81,7 @@
           <input id="cfg-branching" type="number" placeholder="Branches" value="5" min="1" title="Consequences generated per event">
           <input id="cfg-depth" type="number" placeholder="Depth" value="3" min="1" title="How many cause→effect levels deep">
           <input id="cfg-maxnodes" type="number" placeholder="Max nodes" value="2000" min="1" title="Safety cap on total events (1–20000)">
-          <label class="turbo-toggle" title="Turbo: one big parallel call per root instead of per-level calls. Wins on latency-bound providers; on generation-bound (slow-thinking) models it is no faster. Ignored without an LLM."><input id="cfg-turbo" type="checkbox"> ⚡<span data-i18n="turbo">Turbo</span></label>
+          <label class="turbo-toggle" title="Turbo: one big parallel call per root instead of per-level calls. Wins on latency-bound providers; on generation-bound (slow-thinking) models it is no faster. Ignored without an LLM."><input id="cfg-turbo" type="checkbox"> ≫ <span data-i18n="turbo">Turbo</span></label>
         </div>
         <button id="build-btn" class="btn btn-primary" data-i18n="build">Map the consequences</button>
         <div id="build-status" class="status"></div>
@@ -126,7 +126,7 @@
               <button id="zoom-out" class="btn btn-icon" title="Zoom out">−</button>
               <button id="fit-view" class="btn btn-icon" title="Fit view">⤢</button>
               <button id="relayout-btn" class="btn btn-icon" title="Re-layout">⟳</button>
-              <button id="connect-btn" class="btn btn-icon" title="Connect two nodes">⛓</button>
+              <button id="connect-btn" class="btn btn-icon" title="Connect two nodes">⇄</button>
               <button id="formula-btn" class="btn btn-icon" title="Mathematical derivation">∂</button>
             </span>
           </div>
@@ -138,10 +138,10 @@
         <div id="tab-report" class="tabpane hidden">
           <div id="report-body" class="report"></div>
           <div class="row export-row">
-            <button id="export-json" class="btn">⬇ JSON</button>
-            <button id="export-md" class="btn">⬇ Markdown</button>
-            <button id="export-html" class="btn">⬇ HTML</button>
-            <button id="export-png" class="btn">⬇ Network PNG</button>
+            <button id="export-json" class="btn">↓ JSON</button>
+            <button id="export-md" class="btn">↓ Markdown</button>
+            <button id="export-html" class="btn">↓ HTML</button>
+            <button id="export-png" class="btn">↓ Network PNG</button>
           </div>
         </div>
 
@@ -159,7 +159,7 @@
               <div id="conn-list" class="conn-list"></div>
               <div id="chat-log" class="chat-log"></div>
               <div id="node-derivation" class="node-derivation hidden">
-                <div class="nd-head"><span class="nd-title">🧮 Mathematical derivation</span><span class="nd-source"></span></div>
+                <div class="nd-head"><span class="nd-title">ƒx Mathematical derivation</span><span class="nd-source"></span></div>
                 <div class="nd-formula" id="nd-formula"></div>
                 <div class="nd-expl" id="nd-expl"></div>
                 <div class="nd-err" id="nd-err"></div>
@@ -193,7 +193,7 @@
 
     <div id="trajectory" class="trajectory hidden">
       <div class="trajectory-head">
-        <span class="trajectory-title">⚡ Live Trajectory</span>
+        <span class="trajectory-title">≫ Live Trajectory</span>
         <span id="trajectory-count" class="trajectory-count"></span>
         <span id="trajectory-state" class="trajectory-state"></span>
         <button id="trajectory-clear" class="btn btn-ghost btn-tiny" data-i18n="clear">clear</button>

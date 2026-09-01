@@ -26,7 +26,7 @@ const I18N = {
     outcome: "Most likely outcome", confidence: "confidence", keyFindings: "Key outcomes",
     summary: "Prediction", chain: "Most likely path", outcomes: "Top outcomes", web: "Causal web",
     generatedBy: "Consequences reasoned by", ruleBased: "rule-based engine", llm: "language model",
-    networkHint: "Each node is an event/consequence · a line means “causes” · drag to pan · scroll to zoom · click to inspect · double-click to chat with a node · ⛓ connects two nodes",
+    networkHint: "Each node is an event/consequence · a line means “causes” · drag to pan · scroll to zoom · click to inspect · double-click to chat with a node · ⇄ connects two nodes",
     explainHint: "Pick an event to discuss it with Riak · it can grow the web around it, and you can edit any node.",
     chatPlaceholder: "Ask about this event, or propose a “what if”…",
     send: "Send", you: "You", aiDev: "Riak", rename: "Rename", delete: "Delete",
@@ -44,7 +44,7 @@ const I18N = {
     scenarioDefault: "Scenario {n}",
     timelineTitle: "Most likely timeline", dayN: "day {n}",
     ensembleLine: "Confidence {mean}% · range {lo}%–{hi}% ({runs} runs) · chain stability {stab}%",
-    feedbackLoopWarn: "⚠ Feedback loop detected — effects may reinforce each other",
+    feedbackLoopWarn: "! Feedback loop detected — effects may reinforce each other",
     interventionPh: "What new event happens?", removeTitle: "Remove",
     searchPh: "Search events…", sensTitle: "Sensitivity sweep · how the prediction responds to this link",
     sensRunning: "sweeping…",
@@ -91,7 +91,7 @@ const I18N = {
     scenarioDefault: "Skenario {n}",
     timelineTitle: "Linimasa paling mungkin", dayN: "hari {n}",
     ensembleLine: "Keyakinan {mean}% · rentang {lo}%–{hi}% ({runs} run) · stabilitas jalur {stab}%",
-    feedbackLoopWarn: "⚠ Umpan balik terdeteksi — efek bisa saling memperkuat",
+    feedbackLoopWarn: "! Umpan balik terdeteksi — efek bisa saling memperkuat",
     interventionPh: "Kejadian baru apa yang terjadi?", removeTitle: "Hapus",
     searchPh: "Cari peristiwa…", sensTitle: "Sweep sensitivitas · respons prediksi terhadap kaitan ini",
     sensRunning: "menyapu…",
@@ -118,7 +118,7 @@ const I18N = {
     outcome: "最可能结果", confidence: "置信度", keyFindings: "主要结果",
     summary: "预测", chain: "最可能路径", outcomes: "首要结果", web: "因果网络",
     generatedBy: "推理方式", ruleBased: "规则引擎", llm: "语言模型",
-    networkHint: "每个节点 = 事件/后果 · 连线表示“导致” · 拖动平移 · 滚轮缩放 · 点击查看 · 双击讨论 · ⛓ 连接两个节点",
+    networkHint: "每个节点 = 事件/后果 · 连线表示“导致” · 拖动平移 · 滚轮缩放 · 点击查看 · 双击讨论 · ⇄ 连接两个节点",
     explainHint: "选择事件与 Riak 讨论·它可以在其周围扩展网络，你也可以编辑任意节点。",
     chatPlaceholder: "询问此事件，或提出“如果”……",
     send: "发送", you: "你", aiDev: "Riak", rename: "重命名", delete: "删除",
@@ -136,7 +136,7 @@ const I18N = {
     scenarioDefault: "场景 {n}",
     timelineTitle: "最可能时间线", dayN: "第 {n} 天",
     ensembleLine: "置信度 {mean}% · 区间 {lo}%–{hi}%（{runs} 次运行）· 链稳定性 {stab}%",
-    feedbackLoopWarn: "⚠ 检测到反馈回路——效应可能相互强化",
+    feedbackLoopWarn: "! 检测到反馈回路——效应可能相互强化",
     interventionPh: "会发生什么新事件？", removeTitle: "删除",
     searchPh: "搜索事件…", sensTitle: "敏感性扫描 · 预测对该关联的响应",
     sensRunning: "扫描中…",
@@ -213,10 +213,10 @@ function _procText(ev) {
   const d = (ev.detail || "").trim();
   if (!d) return "";
   const short = d.length > 72 ? d.slice(0, 71) + "…" : d;
-  if (ev.kind === "llm") return "🧠 " + short;
-  if (ev.kind === "llm_done") return "🧠 ✓ " + short;
-  if (ev.kind === "phase") return "⚙ " + short;
-  if (ev.kind === "error" || ev.ok === false) return "⚠ " + short;
+  if (ev.kind === "llm") return "∿ " + short;
+  if (ev.kind === "llm_done") return "∿ ✓ " + short;
+  if (ev.kind === "phase") return "› " + short;
+  if (ev.kind === "error" || ev.ok === false) return "! " + short;
   return short;
 }
 
@@ -996,11 +996,11 @@ function renderNodeActions(node) {
   if (!node) { box.classList.add("hidden"); box.innerHTML = ""; return; }
   box.classList.remove("hidden");
   box.innerHTML = `
-    <button class="btn" data-act="rename">✏️ ${t("rename")}</button>
+    <button class="btn" data-act="rename">✎ ${t("rename")}</button>
     <button class="btn" data-act="add">＋ ${t("addConsequence")}</button>
-    <button class="btn" data-act="connect">⛓ ${t("connect")}</button>
-    <button class="btn" data-act="derive">🧮 Derivation</button>
-    <button class="btn warn" data-act="delete">🗑 ${t("delete")}</button>`;
+    <button class="btn" data-act="connect">⇄ ${t("connect")}</button>
+    <button class="btn" data-act="derive">ƒx Derivation</button>
+    <button class="btn warn" data-act="delete">✕ ${t("delete")}</button>`;
   box.querySelector('[data-act="rename"]').onclick = () => renameNode(node.id);
   box.querySelector('[data-act="add"]').onclick = () => addConsequenceNode(node.id);
   box.querySelector('[data-act="connect"]').onclick = () => startConnect(node.id);
@@ -1151,7 +1151,7 @@ function renderNodeDerivation(d) {
   nd.classList.remove("hidden");
   const src = nd.querySelector(".nd-source");
   if (src) src.textContent = d && d.source
-    ? (d.source === "llm" ? "🌀 AI-derived" : "⚙️ " + d.source)
+    ? (d.source === "llm" ? "∿ AI-derived" : "› " + d.source)
     + (d.domain ? " · " + d.domain : "") : "";
   const box = nd.querySelector("#nd-formula");
   const expl = nd.querySelector("#nd-expl");
@@ -1217,7 +1217,7 @@ function renderNodeDerivation(d) {
   if (d && d.feedback_loop) {
     const fb = (typeof d.feedback_loop === "object") ? d.feedback_loop : {};
     const loopTxt = (fb.loop && fb.loop.length) ? esc(fb.loop.join(" → ")) : "";
-    html += `<div class="nd-sec nd-feedback">🔁 <b>Feedback loop detected</b>${loopTxt ? ": " + loopTxt : ""}</div>`;
+    html += `<div class="nd-sec nd-feedback">↻ <b>Feedback loop detected</b>${loopTxt ? ": " + loopTxt : ""}</div>`;
   }
 
   const hz = (d && d.time_horizon) || {};
@@ -1228,7 +1228,7 @@ function renderNodeDerivation(d) {
   if (hzHtml) html += `<div class="nd-sec"><b>Time horizon</b>${hzHtml}</div>`;
 
   if (d && d.conflicting_effects) {
-    html += `<div class="nd-sec nd-conflict">⚖️ <b>Competing effects</b> — net effect uncertain.</div>`;
+    html += `<div class="nd-sec nd-conflict">± <b>Competing effects</b> — net effect uncertain.</div>`;
   }
 
   const sc = (d && d.scenarios) || [];
