@@ -794,6 +794,48 @@ def explain_node(node_text: str, causes: list[tuple[str, str]], effects: list[tu
 
 
 # ------------------------------------------------------- network co-development
+def build_subtree(root_text: str, topic: str, depth: int, branching: int,
+                  lang: str = "en") -> dict | None:
+    """TURBO path: generate a root event's ENTIRE cause→effect subtree in ONE call
+    (nested JSON, `depth` levels, up to `branching` children per node) instead of
+    one call per level. The engine still validates/normalizes every node; this
+    only changes how many round-trips the model needs. Returns the parsed tree
+    dict or None on failure (caller falls back to rule-based expansion)."""
+    if not is_configured():
+        return None
+    schema = ('{"text":"root","children":[{"text":"short consequence phrase",'
+              '"mechanism":"direct causal mechanism","likelihood":0.7,'
+              '"polarity":-0.5,"relation":"causes","children":[...]}]}')
+    if lang == "id":
+        user = (f"Bangun pohon sebab→akibat LENGKAP untuk peristiwa akar berikut: "
+                f"{depth} level ke dalam, maksimal {branching} anak per node, dalam bahasa Indonesia.\n\n"
+                f"Peristiwa akar: {root_text}\nKonteks skenario: {topic}\n\n"
+                f"Jawab STRICT satu objek JSON bersarang persis seperti:\n{schema}\n\n"
+                f"Aturan: frasa singkat dan konkret; tiap anak HARUS akibat langsung dari "
+                f"induknya; likelihood 0-1; polarity -1 (buruk) s/d 1 (baik); relation salah "
+                f"satu dari causes|amplifies|reduces|prevents|triggers; lebih sedikit anak "
+                f"tidak apa-apa jika ragu; capai {depth} level penuh.")
+    else:
+        user = (f"Build a COMPLETE cause→effect tree for the root event below: {depth} levels "
+                f"deep, at most {branching} children per node.\n\n"
+                f"Root event: {root_text}\nScenario context: {topic}\n\n"
+                f"Reply STRICTLY as ONE nested JSON object exactly like:\n{schema}\n\n"
+                f"Rules: short concrete phrases; every child MUST be a DIRECT consequence of "
+                f"its parent; mechanism = the DIRECT causal mechanism from its parent; "
+                f"likelihood 0-1; polarity -1 (bad) to 1 (good); relation one of "
+                f"causes|amplifies|reduces|prevents|triggers; fewer children is fine when "
+                f"uncertain; reach the full {depth} levels.")
+    reply = chat([{"role": "system", "content": "You are RIAK, a causal simulation engine. Output STRICT JSON only."},
+                  {"role": "user", "content": user}],
+                 temperature=0.4, max_tokens=6000, timeout=180.0)
+    if not reply:
+        return None
+    data = _extract_json(reply)
+    if isinstance(data, dict) and isinstance(data.get("children"), list):
+        return data
+    return None
+
+
 def _extract_json(text: str):
     """Best-effort: pull a JSON object out of an LLM reply.
     Uses json.JSONDecoder.raw_decode so braces inside string values (e.g. a JSON object

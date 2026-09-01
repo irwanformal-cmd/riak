@@ -231,5 +231,66 @@ class TestCausalValidator(unittest.TestCase):
         self.assertTrue(any("won" in o["text"] or "late" in o["text"] for o in out))
 
 
+
+class TestTurboBuild(unittest.TestCase):
+    """Turbo mode: one parallel subtree call per root instead of per-level calls."""
+
+    def setUp(self):
+        self._cfg = llm.is_configured
+        self._sub = getattr(llm, "build_subtree", None)
+        causal.trajectory.set_sink(None)
+
+    def tearDown(self):
+        llm.is_configured = self._cfg
+        if self._sub is not None:
+            llm.build_subtree = self._sub
+
+    def _fake_llm(self):
+        llm.is_configured = lambda: True
+        def fake(root_text, topic, depth, branching, lang="en"):
+            def lvl(pref, d):
+                if d > depth:
+                    return []
+                return [{"text": f"{pref} outcome {d}.{i}", "mechanism": "direct effect",
+                         "likelihood": 0.6, "relation": "causes",
+                         "children": lvl(f"{pref}.{i}", d + 1)} for i in range(branching)]
+            return {"text": root_text, "children": lvl("r", 1)}
+        llm.build_subtree = fake
+
+    def test_turbo_full_depth_and_waves(self):
+        self._fake_llm()
+        snaps = []
+        web = causal.build_web("the central bank doubles interest rates overnight", 11,
+                               {"branching": 2, "depth": 3, "max_nodes": 100, "turbo": True},
+                               lang="en", on_progress=snaps.append)
+        levels = {}
+        for n in web["nodes"]:
+            levels[n["level"]] = levels.get(n["level"], 0) + 1
+        self.assertGreater(levels.get(3, 0), 0)
+        ids = {n["id"] for n in web["nodes"]}
+        for e in web["edges"]:
+            self.assertIn(e["source"], ids)
+            self.assertIn(e["target"], ids)
+        # snapshots grow wave by wave and finish at the final web
+        sizes = [x["n_nodes"] for x in snaps]
+        self.assertEqual(sizes, sorted(sizes))
+        self.assertEqual(sizes[-1], web["n_nodes"])
+
+    def test_turbo_falls_back_to_rules_when_call_fails(self):
+        llm.is_configured = lambda: True
+        llm.build_subtree = lambda *a, **k: None
+        web = causal.build_web("fuel prices rise sharply", 5,
+                               {"branching": 2, "depth": 3, "max_nodes": 60, "turbo": True}, lang="en")
+        self.assertGreaterEqual(max(n["level"] for n in web["nodes"]), 1)
+
+    def test_turbo_flag_ignored_without_llm(self):
+        a = causal.build_web("fuel prices rise sharply", 5,
+                             {"branching": 2, "depth": 2, "max_nodes": 40, "turbo": True}, lang="en")
+        b = causal.build_web("fuel prices rise sharply", 5,
+                             {"branching": 2, "depth": 2, "max_nodes": 40}, lang="en")
+        self.assertEqual(a["n_nodes"], b["n_nodes"])
+        self.assertEqual([n["text"] for n in a["nodes"]], [n["text"] for n in b["nodes"]])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

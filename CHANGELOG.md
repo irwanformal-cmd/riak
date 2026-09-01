@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Parallel LLM calls**: expansion chunks within a level and A/B compare
+  scenarios now run concurrently (RIAK_LLM_WORKERS, default 4) — a level
+  with many events costs one chunk's latency instead of N, and 4 scenarios
+  ≈ the wall-time of 1 on providers that parallelize
+- **Turbo build mode** (opt-in checkbox): one parallel LLM call per root
+  generates its whole subtree; every node still passes the engine's
+  validate→derive gate, with per-root rule-based fallback. Best on
+  latency-bound providers; generation-bound models gain little
 - **Live web growth**: the canvas now shows the causal web being built from
   zero, wave by wave, synchronised with the engine (roots appear first, each
   expansion wave animates in). The backend streams partial-web snapshots

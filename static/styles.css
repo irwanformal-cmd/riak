@@ -284,6 +284,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   to { opacity: 1; transform: none; }
 }
 
+/* turbo toggle in the build config row */
+.turbo-toggle { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+  color: var(--accent); cursor: pointer; white-space: nowrap; padding: 0 2px; }
+.turbo-toggle input { accent-color: var(--accent); cursor: pointer; }
+
 /* live build: canvas grows while the engine works */
 #results.building #network-canvas { pointer-events: none; }
 #results.building .tab { pointer-events: none; opacity: .45; }

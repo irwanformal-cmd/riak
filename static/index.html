@@ -81,6 +81,7 @@
           <input id="cfg-branching" type="number" placeholder="Branches" value="5" min="1" title="Consequences generated per event">
           <input id="cfg-depth" type="number" placeholder="Depth" value="3" min="1" title="How many cause→effect levels deep">
           <input id="cfg-maxnodes" type="number" placeholder="Max nodes" value="2000" min="1" title="Safety cap on total events (1–20000)">
+          <label class="turbo-toggle" title="Turbo: one big parallel call per root instead of per-level calls. Wins on latency-bound providers; on generation-bound (slow-thinking) models it is no faster. Ignored without an LLM."><input id="cfg-turbo" type="checkbox"> ⚡<span data-i18n="turbo">Turbo</span></label>
         </div>
         <button id="build-btn" class="btn btn-primary" data-i18n="build">Map the consequences</button>
         <div id="build-status" class="status"></div>

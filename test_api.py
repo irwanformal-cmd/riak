@@ -231,6 +231,22 @@ class TestAPI(unittest.TestCase):
         status, body = self._post("/api/compare", {"project_id": p["id"], "scenarios": []})
         self.assertEqual(status, 400)
 
+    def test_compare_parallel_preserves_order_and_determinism(self):
+        # scenarios now run on parallel threads; results must stay ordered and
+        # byte-identical across runs (offline mode is fully deterministic)
+        p = self._create_project()
+        body_in = {"project_id": p["id"], "scenarios": [
+            {"name": "A", "interventions": []},
+            {"name": "B", "interventions": [{"text": "a subsidy appears"}]},
+            {"name": "C", "interventions": [{"text": "a tax is added"}]},
+        ]}
+        s1, r1 = self._post("/api/compare", body_in)
+        s2, r2 = self._post("/api/compare", body_in)
+        self.assertEqual(s1, 200, r1)
+        self.assertEqual(s2, 200, r2)
+        self.assertEqual([sc["name"] for sc in r1["scenarios"]], ["A", "B", "C"])
+        self.assertEqual(json.dumps(r1, sort_keys=True), json.dumps(r2, sort_keys=True))
+
     def test_sensitivity_sweep(self):
         p = self._create_project()
         edge = p["web"]["edges"][0]

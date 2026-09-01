@@ -17,7 +17,10 @@ import json
 import os
 import random
 import re
+import threading
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from . import llm
 from . import mech
@@ -234,6 +237,15 @@ _LLM_MAX_FAILS = 3
 # finish that in time and every event silently dropped to generic rule-based
 # templates. Two events per call keeps each response small enough to complete.
 _LLM_CHUNK = 2
+
+
+def _llm_workers() -> int:
+    """Concurrent LLM calls allowed during expansion/compare (env-tunable)."""
+    try:
+        return max(1, int(os.environ.get("RIAK_LLM_WORKERS")
+                          or os.environ.get("WANION_LLM_WORKERS", "4")))
+    except ValueError:
+        return 4
 _llm_calls = 0
 _llm_failed = False
 _llm_fail_streak = 0
@@ -330,26 +342,36 @@ def _reset_llm():
     _debug_trace = []
 
 
+_llm_state_lock = threading.Lock()
+
+
 def _use_llm(fn, *args):
     """Call an LLM helper unless the budget is spent or the breaker has tripped.
     The breaker trips only after _LLM_MAX_FAILS consecutive failures, so one
     transient timeout doesn't disable LLM enrichment for the rest of the build.
     A success resets the streak; a truly dead provider still stops after a few
-    wasted calls and the rule-based engine takes over."""
+    wasted calls and the rule-based engine takes over.
+
+    Thread-safe: expansion chunks and compare scenarios now run on parallel
+    worker threads, so the shared budget/breaker state is lock-guarded. The
+    lock is only held for the (cheap) bookkeeping — never during the HTTP call.
+    """
     global _llm_calls, _llm_failed, _llm_fail_streak
-    if _llm_failed or _llm_calls >= _LLM_BUDGET:
-        return None
-    _llm_calls += 1
+    with _llm_state_lock:
+        if _llm_failed or _llm_calls >= _LLM_BUDGET:
+            return None
+        _llm_calls += 1
     try:
         out = fn(*args)
     except Exception:  # noqa: BLE001
         out = None
-    if not out:
-        _llm_fail_streak += 1
-        if _llm_fail_streak >= _LLM_MAX_FAILS:
-            _llm_failed = True
-    else:
-        _llm_fail_streak = 0
+    with _llm_state_lock:
+        if not out:
+            _llm_fail_streak += 1
+            if _llm_fail_streak >= _LLM_MAX_FAILS:
+                _llm_failed = True
+        else:
+            _llm_fail_streak = 0
     return out
 
 
@@ -725,20 +747,44 @@ def _expand_many(items: list[tuple[str, str, str]], n: int, rng: random.Random, 
     texts = [t for _, t, _ in items]
     contexts = [c for _, _, c in items]
     raw_lists: list[list | None] = [None] * len(items)
-    for off in range(0, len(items), _LLM_CHUNK):
-        sub_t = texts[off:off + _LLM_CHUNK]
-        sub_c = contexts[off:off + _LLM_CHUNK]
+    # Expansion chunks run in PARALLEL (RIAK_LLM_WORKERS, default 4): each chunk
+    # is an independent LLM call, and on slow reasoning providers a level with
+    # many events used to cost N_chunks × call latency sequentially. Same
+    # prompts, same validation — just concurrent. Set workers to 1 to restore
+    # strictly sequential behaviour (e.g. rate-limited providers).
+    chunks = [(off, texts[off:off + _LLM_CHUNK], contexts[off:off + _LLM_CHUNK])
+              for off in range(0, len(items), _LLM_CHUNK)]
+    parent_job = trajectory.get_job()
+
+    def _run_chunk(off: int, sub_t: list, sub_c: list) -> dict:
+        if parent_job:
+            trajectory.set_job(parent_job)   # route llm events to the right trajectory
+        got: dict[int, list] = {}
         chunk = _use_llm(llm.batch_expand, sub_t, n, lang, sub_c)
         if chunk is None and len(sub_t) > 1:
             # one slow/large event can poison a chunk; retry its events one by one
             for j in range(len(sub_t)):
                 one = _use_llm(llm.batch_expand, [sub_t[j]], n, lang, [sub_c[j]])
                 if one and one[0]:
-                    raw_lists[off + j] = one[0]
+                    got[off + j] = one[0]
         elif chunk:
             for j in range(len(sub_t)):
                 if j < len(chunk) and chunk[j]:
-                    raw_lists[off + j] = chunk[j]
+                    got[off + j] = chunk[j]
+        return got
+
+    def _absorb(got: dict) -> None:
+        for pos, raw in got.items():
+            raw_lists[pos] = raw
+
+    workers = _llm_workers()
+    if len(chunks) > 1 and workers > 1:
+        with ThreadPoolExecutor(max_workers=min(workers, len(chunks))) as pool:
+            for got in pool.map(lambda c: _run_chunk(*c), chunks):
+                _absorb(got)
+    else:
+        for c in chunks:
+            _absorb(_run_chunk(*c))
     out: dict[str, list[dict]] = {}
     for i, (nid, text, _) in enumerate(items):
         parent = node_by_id.get(nid) or {}
@@ -899,30 +945,102 @@ def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str =
     trajectory.push("phase", f"extract {len(roots)} starting event(s)")
     _emit_progress()   # roots visible immediately — the "drop" before the ripples
 
-    # expand level-by-level, batching all events of a level into one LLM call
-    while frontier and idx < max_nodes:
-        level = frontier[0][1]
-        if level >= depth:
-            break
-        trajectory.push("phase", f"expand depth {level} → {level + 1} ({len(frontier)} node(s))")
-        items = [(nid, node_by_id[nid]["text"], _ancestry(nid, parent, node_by_id)) for nid, _ in frontier]
-        results = _expand_many(items, branching, rng, lang, node_by_id)
-        next_frontier: list[tuple[str, int]] = []
-        for nid, cons in results.items():
-            for cand in cons:
-                if idx >= max_nodes:
-                    break
-                cid = add_node(cand["text"], "consequence", level + 1, cand["polarity"], cand, nid)
-                edges.append({"source": nid, "target": cid, "relation": cand["relation"],
-                              "weight": cand["probability"], "mechanism": cand.get("mechanism"),
-                              "state_changes": cand.get("state_changes"),
-                              "formula": cand.get("formula"), "uncertainty": cand.get("uncertainty"),
-                              "operator": cand.get("operator"),
-                              "delay_days": estimate_delay_days(node_by_id[cid]["text"])})
-                parent[cid] = nid
-                next_frontier.append((cid, level + 1))
-        frontier = next_frontier
-        _emit_progress()   # a full wave settled — let the UI show it
+    def _place_candidate(parent_nid: str, cand: dict, level: int) -> str | None:
+        """Attach an ALREADY validated+derived candidate under a parent (shared by
+        the classic wave loop — where _expand_many ran the gate — and the turbo
+        assembler, which runs the gate itself just below). Returns child id or
+        None when the web is full."""
+        if idx >= max_nodes:
+            return None
+        cid = add_node(cand["text"], "consequence", level, cand["polarity"], cand, parent_nid)
+        edges.append({"source": parent_nid, "target": cid, "relation": cand["relation"],
+                      "weight": cand["probability"], "mechanism": cand.get("mechanism"),
+                      "state_changes": cand.get("state_changes"),
+                      "formula": cand.get("formula"), "uncertainty": cand.get("uncertainty"),
+                      "operator": cand.get("operator"),
+                      "delay_days": estimate_delay_days(node_by_id[cid]["text"])})
+        parent[cid] = parent_nid
+        return cid
+
+    turbo = bool(config.get("turbo")) and llm.is_configured() and frontier
+    if turbo:
+        # TURBO: one LLM call per root generates its WHOLE subtree, all roots in
+        # PARALLEL — the ~depth+1 sequential round-trips collapse to ~2 rounds
+        # (roots call + one parallel subtree round). Assembly is level-by-level
+        # with the exact same validation as the classic path; a root whose call
+        # failed falls back to a rule-based chain. Waves are paced slightly so
+        # the live canvas still shows the web growing (assembly itself is instant).
+        trajectory.push("phase", f"turbo: generate {len(frontier)} subtree(s) in parallel")
+        root_ids = [nid for nid, _ in frontier]
+        parent_job = trajectory.get_job()
+
+        def _fetch(root_text: str):
+            if parent_job:
+                trajectory.set_job(parent_job)   # route llm events from worker threads
+            return _use_llm(llm.build_subtree, root_text, topic, depth, branching, lang)
+
+        texts = [node_by_id[nid]["text"] for nid in root_ids]
+        if len(texts) > 1 and _llm_workers() > 1:
+            with ThreadPoolExecutor(max_workers=min(_llm_workers(), len(texts))) as pool:
+                trees = list(pool.map(_fetch, texts))
+        else:
+            trees = [_fetch(t) for t in texts]
+
+        frontiers: list[list[tuple[str, object]]] = [
+            [(rid, tree)] for rid, tree in zip(root_ids, trees)]
+        for level in range(1, depth + 1):
+            if idx >= max_nodes:
+                break
+            trajectory.push("phase", f"turbo: assemble depth {level}")
+            added = False
+            for qi in range(len(root_ids)):
+                nxt: list[tuple[str, object]] = []
+                for parent_nid, tree in frontiers[qi]:
+                    ptext = node_by_id[parent_nid]["text"]
+                    if isinstance(tree, dict):
+                        children = (tree.get("children") or [])[:branching]
+                    else:
+                        # subtree call failed (or rule child): local rule-based chain
+                        children = _rule_expand(ptext, branching, rng, lang,
+                                                ancestry=_ancestry(parent_nid, parent, node_by_id))
+                    for child in children:
+                        cand = _normalize_candidate(child, rng, lang)
+                        if cand is None:
+                            continue
+                        pnode = node_by_id[parent_nid]
+                        ok, _reason = validate_candidate(cand, pnode, lang)   # engine gate
+                        if not ok:
+                            continue
+                        cand = _derive_candidate(cand, pnode, rng, lang)
+                        cid = _place_candidate(parent_nid, cand, level)
+                        if cid is None:
+                            continue
+                        added = True
+                        nxt.append((cid, child if isinstance(child, dict) else None))
+                frontiers[qi] = nxt
+            _emit_progress()          # a turbo wave settled
+            if on_progress and added:
+                time.sleep(0.9)       # pace the reveal; the canvas poll is ~1s
+            if not added:
+                break
+    else:
+        # expand level-by-level, batching all events of a level into one LLM call
+        while frontier and idx < max_nodes:
+            level = frontier[0][1]
+            if level >= depth:
+                break
+            trajectory.push("phase", f"expand depth {level} → {level + 1} ({len(frontier)} node(s))")
+            items = [(nid, node_by_id[nid]["text"], _ancestry(nid, parent, node_by_id)) for nid, _ in frontier]
+            results = _expand_many(items, branching, rng, lang, node_by_id)
+            next_frontier: list[tuple[str, int]] = []
+            for nid, cons in results.items():
+                for cand in cons:
+                    cid = _place_candidate(nid, cand, level + 1)
+                    if cid is None:
+                        continue
+                    next_frontier.append((cid, level + 1))
+            frontier = next_frontier
+            _emit_progress()   # a full wave settled — let the UI show it
 
     result = {
         "id": uuid.uuid4().hex[:12],

@@ -19,6 +19,7 @@ import os
 import random
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import traceback
 import urllib.parse
@@ -160,7 +161,7 @@ _MAX_TRAJECTORY = 500
 
 
 def _traj_sink(ev: dict):
-    job = getattr(_tl, "job", None)
+    job = getattr(_tl, "job", None) or trajectory.get_job()
     if not job:
         return
     rec = _trajectories.get(job)
@@ -178,6 +179,7 @@ def _start_trajectory(job: str):
     with _lock:
         _trajectories[job] = {"events": [], "active": True, "started": time.time()}
     _tl.job = job
+    trajectory.set_job(job)   # so engine worker threads can inherit the routing
 
 
 def _finish_trajectory(job: str, ok: bool = True):
@@ -675,7 +677,7 @@ def handle_redo(body: dict) -> dict:
             "can_undo": can_undo, "can_redo": can_redo}
 
 
-def handle_compare(body: dict) -> dict:
+def handle_compare(body: dict, on_progress=None) -> dict:
     """A/B-compare intervention scenarios side by side.
 
     body: {project_id, scenarios: [{name, interventions: [...]}, ...], config?}
@@ -697,8 +699,7 @@ def handle_compare(body: dict) -> dict:
         lang = "en"
     ens_runs = int(config.get("ensemble_runs", 25) or 0)
 
-    out = []
-    for i, sc in enumerate(scenarios):
+    def run_one(i: int, sc: dict) -> dict:
         web = copy.deepcopy(p["web"])
         interventions = sc.get("interventions") or []
         if interventions:
@@ -708,8 +709,30 @@ def handle_compare(body: dict) -> dict:
         prediction = causal.predict(web, lang=lang)
         if ens_runs > 1:
             prediction["ensemble"] = causal.predict_ensemble(web, lang=lang, runs=ens_runs)
-        out.append({"name": str(sc.get("name") or f"Scenario {i + 1}")[:80],
-                    "prediction": prediction, "n_nodes": web["n_nodes"]})
+        return {"name": str(sc.get("name") or f"Scenario {i + 1}")[:80],
+                "prediction": prediction, "n_nodes": web["n_nodes"]}
+
+    out = [None] * len(scenarios)
+    done = {"n": 0}
+
+    def note_done():
+        done["n"] += 1
+        if on_progress:
+            on_progress({"compare_done": done["n"], "compare_total": len(scenarios)})
+
+    # Scenarios are fully independent (each works on its own web deepcopy), so
+    # they run in PARALLEL — 4 scenarios ≈ the wall-time of 1, as long as the
+    # provider tolerates concurrent requests (tune RIAK_LLM_WORKERS if not).
+    if len(scenarios) > 1 and causal._llm_workers() > 1:
+        with ThreadPoolExecutor(max_workers=min(4, len(scenarios))) as pool:
+            futs = {pool.submit(run_one, i, sc): i for i, sc in enumerate(scenarios)}
+            for fut in as_completed(futs):
+                out[futs[fut]] = fut.result()
+                note_done()
+    else:
+        for i, sc in enumerate(scenarios):
+            out[i] = run_one(i, sc)
+            note_done()
     return {"scenarios": out}
 
 
@@ -884,7 +907,7 @@ _ASYNC_ENDPOINTS = {"/api/projects", "/api/simulate", "/api/develop", "/api/comp
 
 def _dispatch_post(path: str, body: dict, on_progress=None) -> dict:
     fn = globals()[_POST_ROUTES[path]]
-    if on_progress is not None and path == "/api/projects":
+    if on_progress is not None and path in ("/api/projects", "/api/compare"):
         return fn(body, on_progress=on_progress)
     return fn(body)
 
@@ -903,10 +926,11 @@ def _run_async(path: str, body: dict) -> dict:
                          "finished": None, "result": None, "error": None}
 
     def work():
-        # for project builds: stream partial-web snapshots into the job record
-        # so the UI canvas can show the web growing wave by wave
+        # project builds stream partial-web snapshots (live canvas growth);
+        # compares stream per-scenario completion counts — both land in the
+        # job record's "partial" field for the poller
         on_progress = None
-        if path == "/api/projects":
+        if path in ("/api/projects", "/api/compare"):
             def on_progress(snap):
                 with _lock:
                     j = _jobs.get(job_id)

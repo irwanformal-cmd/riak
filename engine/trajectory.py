@@ -60,3 +60,30 @@ def end() -> None:
 def is_active() -> bool:
     with _lock:
         return _running > 0
+
+
+# ---------------------------------------------------------------- job context
+# The server routes events to a trajectory record by job id. Engine code now
+# makes PARALLEL LLM calls from worker threads (fast builds, parallel compare)
+# — threading.local means a worker would lose the routing context unless the
+# parent explicitly hands it over. These helpers make that hand-off one line.
+_tl = threading.local()
+
+
+def set_job(job) -> None:
+    _tl.job = job
+
+
+def get_job():
+    return getattr(_tl, "job", None)
+
+
+def inherit_job(parent_job):
+    """Decorator-free context copier: returns a wrapper that runs fn with the
+    parent's job context installed on the current (worker) thread."""
+    def wrap(fn):
+        def inner(*a, **kw):
+            set_job(parent_job)
+            return fn(*a, **kw)
+        return inner
+    return wrap

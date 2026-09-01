@@ -39,6 +39,7 @@ const I18N = {
     llmSettings: "LLM provider settings", llmSettingsHint: "Connect Riak to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.", llmTest: "Test connection", llmSave: "Save", llmTestOk: "Connection OK", llmTestFail: "Connection failed", llmSaved: "Saved · provider configured",
     undo: "Undo", redo: "Redo",
     compareScenarios: "Compare scenarios", addScenario: "+ Add scenario", runComparison: "Run comparison",
+    turbo: "Turbo",
     comparing: "Running comparison…", compareDone: "Comparison complete.", compareResults: "Scenario comparison",
     scenarioDefault: "Scenario {n}",
     timelineTitle: "Most likely timeline", dayN: "day {n}",
@@ -85,6 +86,7 @@ const I18N = {
     llmSettings: "Pengaturan provider LLM", llmSettingsHint: "Hubungkan Riak ke provider OpenAI-compatible apa pun · DeepSeek, OpenAI, Qwen, Ollama, atau endpoint custom. Kosongkan untuk tetap mode offline (berbasis aturan).", llmTest: "Tes koneksi", llmSave: "Simpan", llmTestOk: "Koneksi OK", llmTestFail: "Koneksi gagal", llmSaved: "Tersimpan · provider terkonfigurasi",
     undo: "Urungkan", redo: "Lakukan lagi",
     compareScenarios: "Bandingkan skenario", addScenario: "+ Tambah skenario", runComparison: "Jalankan perbandingan",
+    turbo: "Turbo",
     comparing: "Menjalankan perbandingan…", compareDone: "Perbandingan selesai.", compareResults: "Perbandingan skenario",
     scenarioDefault: "Skenario {n}",
     timelineTitle: "Linimasa paling mungkin", dayN: "hari {n}",
@@ -129,6 +131,7 @@ const I18N = {
     llmSettings: "LLM 提供商设置", llmSettingsHint: "将 Riak 连接到任何 OpenAI 兼容提供商。留空则保持离线（基于规则）模式。", llmTest: "测试连接", llmSave: "保存", llmTestOk: "连接成功", llmTestFail: "连接失败", llmSaved: "已保存",
     undo: "撤销", redo: "重做",
     compareScenarios: "对比场景", addScenario: "+ 添加场景", runComparison: "运行对比",
+    turbo: "极速",
     comparing: "正在运行对比…", compareDone: "对比完成。", compareResults: "场景对比",
     scenarioDefault: "场景 {n}",
     timelineTitle: "最可能时间线", dayN: "第 {n} 天",
@@ -533,6 +536,7 @@ async function buildWorld() {
         branching: parseInt($("#cfg-branching").value) || 5,
         depth: parseInt($("#cfg-depth").value) || 3,
         max_nodes: parseInt($("#cfg-maxnodes").value) || 2000,
+        turbo: $("#cfg-turbo") ? $("#cfg-turbo").checked : false,
       },
     };
     const p = await apiAsync("/api/projects", payload, _liveBuildUpdate);
@@ -657,7 +661,14 @@ async function runComparison() {
   setStatus("compare-status", t("comparing"), "loading");
   $("#compare-run").disabled = true;
   try {
-    const out = await apiAsync("/api/compare", { project_id: state.currentProject.id, lang: LANG, scenarios });
+    const out = await apiAsync("/api/compare", { project_id: state.currentProject.id, lang: LANG, scenarios },
+      (snap) => {
+        // per-scenario progress streamed by the parallel compare
+        if (snap && snap.compare_total) {
+          const m = $("#compare-status").querySelector(".proc-msg");
+          if (m) m.textContent = `${t("comparing")} — ${snap.compare_done}/${snap.compare_total}`;
+        }
+      });
     renderCompareResults(out.scenarios || []);
     setStatus("compare-status", t("compareDone"), "ok");
   } catch (e) { setStatus("compare-status", e.message, "err"); }
