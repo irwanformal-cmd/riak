@@ -68,10 +68,15 @@ class TestAPI(unittest.TestCase):
         cls._tmp.cleanup()
 
     # ------------------------------------------------------------ helpers
-    def _request(self, method, path, body=None):
+    def setUp(self):
+        # keep rate-limit buckets hermetic between tests
+        server._RATE.clear()
+        server._HEAVY_RATE.clear()
+
+    def _request(self, method, path, body=None, headers=None):
         url = "http://127.0.0.1:%d%s" % (self.port, path)
         data = None
-        headers = {}
+        headers = dict(headers or {})
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -302,6 +307,56 @@ class TestAPI(unittest.TestCase):
             return  # connection cut mid-upload: the server refused the payload
         self.assertEqual(status, 413)
         self.assertIn("error", body)
+
+    # ---------------------------------------------------- security hardening
+    def test_no_cors_wildcard_and_security_headers(self):
+        """The API must not be readable cross-origin (drive-by protection):
+        no Access-Control-Allow-Origin, plus the standard hardening headers."""
+        url = "http://127.0.0.1:%d/api/health" % self.port
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            hdrs = resp.headers
+            self.assertNotIn("Access-Control-Allow-Origin", hdrs)
+            self.assertEqual(hdrs.get("X-Content-Type-Options"), "nosniff")
+            self.assertEqual(hdrs.get("Referrer-Policy"), "no-referrer")
+            self.assertEqual(hdrs.get("X-Frame-Options"), "DENY")
+
+    def test_cross_origin_request_rejected(self):
+        status, body = self._get_headers("/api/projects", {"Origin": "http://evil.example"})
+        self.assertEqual(status, 403)
+        self.assertIn("cross-origin", body.get("error", ""))
+
+    def test_same_origin_request_allowed(self):
+        origin = "http://127.0.0.1:%d" % self.port
+        status, _ = self._get_headers("/api/health", {"Origin": origin})
+        self.assertEqual(status, 200)
+
+    def _get_headers(self, path, headers):
+        url = "http://127.0.0.1:%d%s" % (self.port, path)
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return resp.status, json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
+            finally:
+                exc.close()
+
+    def test_origin_and_auth_helpers(self):
+        # no Origin (curl/scripts) is fine; foreign Origin is not
+        self.assertTrue(server._origin_ok(None, "127.0.0.1:8000"))
+        self.assertTrue(server._origin_ok("http://127.0.0.1:8000", "127.0.0.1:8000"))
+        self.assertFalse(server._origin_ok("http://evil.example", "127.0.0.1:8000"))
+        self.assertFalse(server._origin_ok("not a url", "127.0.0.1:8000"))
+        # without RIAK_TOKEN configured everything is allowed (localhost mode)
+        self.assertTrue(server._auth_ok(None))
+        self.assertTrue(server._auth_ok("Bearer anything"))
+
+    def test_heavy_rate_limiter_bucket(self):
+        ip = "10.9.9.9"  # unique ip — never collides with the HTTP tests
+        for _ in range(server._HEAVY_RATE_LIMIT):
+            self.assertTrue(server._heavy_rate_ok(ip))
+        self.assertFalse(server._heavy_rate_ok(ip))
 
 
 if __name__ == "__main__":

@@ -83,16 +83,64 @@ _RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT") or
                   os.environ.get("WANION_RATE_LIMIT", "600"))
 _RATE_WINDOW = 60.0
 
+# Tiered limit: endpoints that burn LLM quota (real money) get a much lower
+# ceiling than the generic one. Separate bucket per IP.
+_HEAVY_PATHS = frozenset({
+    "/api/projects", "/api/simulate", "/api/develop", "/api/compare",
+    "/api/report", "/api/chat", "/api/derive",
+})
+_HEAVY_RATE: dict[str, list] = {}
+_HEAVY_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT_HEAVY") or
+                        os.environ.get("WANION_RATE_LIMIT_HEAVY", "30"))
 
-def _rate_ok(ip: str) -> bool:
+
+def _bucket_ok(store: dict, ip: str, limit: int) -> bool:
     now = time.time()
     with _lock:
-        rec = _RATE.get(ip)
+        rec = store.get(ip)
         if not rec or now - rec[1] > _RATE_WINDOW:
-            _RATE[ip] = [1, now]
+            store[ip] = [1, now]
             return True
         rec[0] += 1
-        return rec[0] <= _RATE_LIMIT
+        return rec[0] <= limit
+
+
+def _rate_ok(ip: str) -> bool:
+    return _bucket_ok(_RATE, ip, _RATE_LIMIT)
+
+
+def _heavy_rate_ok(ip: str) -> bool:
+    return _bucket_ok(_HEAVY_RATE, ip, _HEAVY_RATE_LIMIT)
+
+
+# -------------------------------------------------------------------- access
+# Optional bearer token. REQUIRED when binding beyond localhost: without it the
+# whole API (projects, LLM config, paid endpoints) is open to the network.
+_AUTH_TOKEN = os.environ.get("RIAK_TOKEN") or os.environ.get("WANION_TOKEN", "")
+
+
+def _auth_ok(auth_header) -> bool:
+    """True when no token is configured, or the header carries the right one."""
+    if not _AUTH_TOKEN:
+        return True
+    return auth_header == "Bearer " + _AUTH_TOKEN
+
+
+def _origin_ok(origin, host) -> bool:
+    """Same-origin guard against browser 'drive-by' attacks.
+
+    Non-browser clients (curl, scripts) send no Origin — allowed. Browsers
+    always send Origin on cross-origin POSTs, and we only accept an Origin
+    whose host matches the Host header the request arrived on. This replaces
+    the old Access-Control-Allow-Origin: * (which let any website read and
+    drive the API — including swapping the LLM base_url to steal the key)."""
+    if not origin:
+        return True
+    try:
+        ohost = urllib.parse.urlparse(origin).netloc.lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return bool(ohost) and ohost == (host or "").lower()
 
 
 # ------------------------------------------------------------------ job store
@@ -164,12 +212,23 @@ def _load_projects():
             log.warning("store: skip %s: %s", fn, exc)
 
 
+def _write_json_private(path: str, obj) -> None:
+    """Write JSON with owner-only permissions (0600) — used for everything that
+    may hold secrets or personal scenario text."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
+    try:
+        os.chmod(path, 0o600)   # in case the file pre-existed with looser perms
+    except OSError:
+        pass
+
+
 def _save_project(p: dict):
     os.makedirs(DATA_DIR, exist_ok=True)
     # underscore-prefixed keys (undo/redo stacks) are session state — never persisted
     clean = {k: v for k, v in p.items() if not k.startswith("_")}
-    with open(os.path.join(DATA_DIR, f"{p['id']}.json"), "w", encoding="utf-8") as f:
-        json.dump(clean, f, ensure_ascii=False, indent=2)
+    _write_json_private(os.path.join(DATA_DIR, f"{p['id']}.json"), clean)
 
 
 # ---------------------------------------------------------------- llm config
@@ -201,6 +260,10 @@ def _load_dotenv(path: str = ".env") -> None:
 def _load_llm_config():
     if os.path.exists(LLM_CONFIG_PATH):
         try:
+            os.chmod(LLM_CONFIG_PATH, 0o600)   # tighten pre-existing files too
+        except OSError:
+            pass
+        try:
             with open(LLM_CONFIG_PATH, encoding="utf-8") as f:
                 llm.set_runtime_config(json.load(f))
         except Exception as exc:  # noqa: BLE001
@@ -209,8 +272,7 @@ def _load_llm_config():
 
 def _save_llm_config(cfg: dict):
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(LLM_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    _write_json_private(LLM_CONFIG_PATH, cfg)
 
 
 def _masked_llm_config() -> dict:
@@ -854,13 +916,18 @@ class _HttpError(Exception):
 class Handler(BaseHTTPRequestHandler):
     server_version = "Riak/1.0.0"
 
+    def _security_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
+
     def _send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -869,7 +936,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -893,11 +960,25 @@ class Handler(BaseHTTPRequestHandler):
         if not _rate_ok(self.client_address[0]):
             return self._send_json({"error": "rate limit exceeded — slow down"}, 429)
 
+        # cross-origin browsers get nothing on the API (see _origin_ok)
+        if path.startswith("/api/") and not _origin_ok(self.headers.get("Origin"),
+                                                       self.headers.get("Host")):
+            return self._send_json({"error": "cross-origin requests are not allowed"}, 403)
+
+        # bearer token guard (when RIAK_TOKEN is set; /api/health stays open)
+        if (_AUTH_TOKEN and path.startswith("/api/") and path != "/api/health"
+                and not _auth_ok(self.headers.get("Authorization"))):
+            return self._send_json({"error": "unauthorized — provide Authorization: Bearer <token>"}, 401)
+
+        # heavier limit for endpoints that spend LLM quota
+        if (method == "POST" and path in _HEAVY_PATHS
+                and not _heavy_rate_ok(self.client_address[0])):
+            return self._send_json({"error": "rate limit exceeded on compute-heavy endpoints — wait a minute"}, 429)
+
         if method == "OPTIONS":
+            # no CORS headers on purpose: the API is same-origin only
             self.send_response(204)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self._security_headers()
             self.end_headers()
             return
 
@@ -964,9 +1045,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json({"error": str(exc)}, exc.status)
             except ValueError as exc:
                 return self._send_json({"error": str(exc)}, 400)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
+                # details stay in the log — never leak internals to the client
                 log.error("unhandled error on %s %s\n%s", method, path, traceback.format_exc())
-                return self._send_json({"error": f"server error: {exc}"}, 500)
+                return self._send_json({"error": "internal server error"}, 500)
 
         # static
         if method != "GET":
@@ -1014,6 +1096,12 @@ def main():
     print(f"  →  http://{host}:{port}")
     print(f"  →  {llm_state}")
     print(f"  →  projects on disk: {DATA_DIR}\n")
+    if host not in ("127.0.0.1", "localhost", "::1") and not _AUTH_TOKEN:
+        warn = ("WARNING: binding to a non-localhost address WITHOUT RIAK_TOKEN — "
+                "the entire API (projects, LLM settings, paid endpoints) is open "
+                "to the network. Set RIAK_TOKEN or bind to 127.0.0.1.")
+        log.warning(warn)
+        print("  ⚠️  " + warn + "\n")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

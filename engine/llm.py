@@ -59,9 +59,15 @@ def _cache_save() -> None:
     try:
         os.makedirs(os.path.dirname(_CACHE_PATH), exist_ok=True)
         tmp = _CACHE_PATH + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
+        # owner-only file: cached prompts can contain private scenario text
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(_cache, f, ensure_ascii=False)
         os.replace(tmp, _CACHE_PATH)
+        try:
+            os.chmod(_CACHE_PATH, 0o600)
+        except OSError:
+            pass
     except Exception:  # noqa: BLE001 — caching is best-effort
         pass
 
