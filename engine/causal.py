@@ -806,8 +806,14 @@ def _slug(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8")).hexdigest()[:8]
 
 
-def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str = "en") -> dict:
-    """Expand a scenario into a cause→effect web of events."""
+def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str = "en",
+              on_progress=None) -> dict:
+    """Expand a scenario into a cause→effect web of events.
+
+    on_progress (optional) is called with a lightweight partial-web snapshot
+    {nodes, edges, n_nodes, n_edges, topic} after the roots are created and
+    after every expansion wave — the server streams these to the UI so the
+    canvas can show the web GROWING live instead of appearing at once."""
     config = config or {}
     lang = _lang(lang)
     _reset_llm()
@@ -883,9 +889,15 @@ def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str =
         node_by_id[nid] = node
         return nid
 
+    def _emit_progress():
+        if on_progress:
+            on_progress({"nodes": list(nodes), "edges": list(edges),
+                         "n_nodes": len(nodes), "n_edges": len(edges), "topic": topic})
+
     roots = extract_root_events(seed_text, rng, lang=lang)
     frontier: list[tuple[str, int]] = [(add_node(r, "root", 0, _polarity(r)), 0) for r in roots]
     trajectory.push("phase", f"extract {len(roots)} starting event(s)")
+    _emit_progress()   # roots visible immediately — the "drop" before the ripples
 
     # expand level-by-level, batching all events of a level into one LLM call
     while frontier and idx < max_nodes:
@@ -910,6 +922,7 @@ def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str =
                 parent[cid] = nid
                 next_frontier.append((cid, level + 1))
         frontier = next_frontier
+        _emit_progress()   # a full wave settled — let the UI show it
 
     result = {
         "id": uuid.uuid4().hex[:12],

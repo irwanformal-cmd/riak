@@ -379,7 +379,7 @@ def _load_samples() -> list[dict]:
 
 
 # ---------------------------------------------------------------- endpoints
-def handle_create_project(body: dict) -> dict:
+def handle_create_project(body: dict, on_progress=None) -> dict:
     name = (body.get("name") or "Untitled scenario").strip()[:120]
     seed_text = (body.get("seed_text") or "").strip()
     if not seed_text:
@@ -393,7 +393,7 @@ def handle_create_project(body: dict) -> dict:
     _start_trajectory(job)
     trajectory.push("phase", f"building world from scenario")
     try:
-        web = causal.build_web(seed_text, seed, config, lang=lang)
+        web = causal.build_web(seed_text, seed, config, lang=lang, on_progress=on_progress)
         _finish_trajectory(job, ok=True)
     except Exception:
         _finish_trajectory(job, ok=False)
@@ -882,8 +882,11 @@ _POST_ROUTES = {
 _ASYNC_ENDPOINTS = {"/api/projects", "/api/simulate", "/api/develop", "/api/compare"}
 
 
-def _dispatch_post(path: str, body: dict) -> dict:
-    return globals()[_POST_ROUTES[path]](body)
+def _dispatch_post(path: str, body: dict, on_progress=None) -> dict:
+    fn = globals()[_POST_ROUTES[path]]
+    if on_progress is not None and path == "/api/projects":
+        return fn(body, on_progress=on_progress)
+    return fn(body)
 
 
 def _run_async(path: str, body: dict) -> dict:
@@ -900,8 +903,17 @@ def _run_async(path: str, body: dict) -> dict:
                          "finished": None, "result": None, "error": None}
 
     def work():
+        # for project builds: stream partial-web snapshots into the job record
+        # so the UI canvas can show the web growing wave by wave
+        on_progress = None
+        if path == "/api/projects":
+            def on_progress(snap):
+                with _lock:
+                    j = _jobs.get(job_id)
+                    if j is not None:
+                        j["partial"] = snap
         try:
-            out = _dispatch_post(path, body)
+            out = _dispatch_post(path, body, on_progress=on_progress)
             with _lock:
                 _jobs[job_id].update(status="done", result=out, finished=time.time())
         except Exception as exc:  # noqa: BLE001 — surfaced via the job record

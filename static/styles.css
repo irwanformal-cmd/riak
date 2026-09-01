@@ -284,6 +284,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   to { opacity: 1; transform: none; }
 }
 
+/* live build: canvas grows while the engine works */
+#results.building #network-canvas { pointer-events: none; }
+#results.building .tab { pointer-events: none; opacity: .45; }
+#results.building .tab.active { opacity: 1; }
+#results.building #tab-network {
+  border-radius: 8px;
+  animation: liveBuildGlow 2s ease-in-out infinite;
+}
+@keyframes liveBuildGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(19,111,143,.15); }
+  50% { box-shadow: 0 0 0 3px rgba(19,111,143,.38); }
+}
+
 /* URL / file import row */
 .import-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: stretch; }
 .import-url {

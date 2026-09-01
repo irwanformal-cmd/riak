@@ -243,12 +243,14 @@ async function api(path, body) {
 }
 
 /* ---- async jobs: POST with async:true, then poll /api/jobs/<id> ---- */
-async function apiAsync(path, body) {
+async function apiAsync(path, body, onPartial) {
   const start = await api(path, Object.assign({}, body, { async: true }));
   if (!start || !start.job_id) return start; // server ignored async: sync response
   for (;;) {
     await new Promise((res) => setTimeout(res, 1000));
     const st = await api("/api/jobs/" + encodeURIComponent(start.job_id));
+    // live partial-web snapshots (project builds): let the canvas grow wave by wave
+    if (st.partial && onPartial) onPartial(st.partial);
     if (st.status === "done") return st.result;
     if (st.status === "error") throw new Error(st.error || "job failed");
   }
@@ -493,6 +495,25 @@ function importFromFile(e) {
   e.target.value = "";   // allow re-picking the same file
 }
 
+/* ---- live web growth: show the canvas while the engine builds, wave by wave */
+function _beginLiveBuild() {
+  $("#results").classList.remove("hidden");
+  $("#results").classList.add("building");
+  switchTab("network");
+  network.resetWeb({ nodes: [], edges: [] });
+  network.render();
+  window.scrollTo({ top: $("#results").offsetTop - 10, behavior: "smooth" });
+}
+
+function _liveBuildUpdate(web) {
+  if (!web || !web.nodes) return;
+  network.setWeb(web);   // incremental: old nodes stay put, new ones grow in
+}
+
+function _endLiveBuild() {
+  $("#results").classList.remove("building");
+}
+
 async function buildWorld() {
   const seed_text = $("#seed-text").value.trim();
   if (!seed_text) { toast(t("needSeed"), true); return; }
@@ -500,6 +521,7 @@ async function buildWorld() {
   $("#build-btn").disabled = true;
   const job = "job-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
   startTrajectory(job);
+  _beginLiveBuild();
   try {
     const payload = {
       name: $("#project-name").value.trim() || "Scenario",
@@ -513,32 +535,38 @@ async function buildWorld() {
         max_nodes: parseInt($("#cfg-maxnodes").value) || 2000,
       },
     };
-    const p = await apiAsync("/api/projects", payload);
+    const p = await apiAsync("/api/projects", payload, _liveBuildUpdate);
     state.currentProject = p;
     state.web = p.web; state.prediction = null; state.report = null;
     state.interventions = [];
-    $("#results").classList.add("hidden");
     const cr = $("#compare-results"); if (cr) { cr.classList.add("hidden"); cr.innerHTML = ""; }
     updateUndoRedoButtons(true, true);
     await refreshProjects();
     showSetup(p);
     setStatus("build-status", t("built"), "ok");
   } catch (e) { setStatus("build-status", e.message, "err"); }
-  finally { stopTrajectory(true); $("#build-btn").disabled = false; }
+  finally { _endLiveBuild(); stopTrajectory(true); $("#build-btn").disabled = false; }
 }
 
 function showSetup(p) {
   $("#step-build").classList.add("hidden");
   $("#step-setup").classList.remove("hidden");
-  $("#results").classList.add("hidden");
+  // keep the (just-grown) web visible — the user watched it build; don't yank it away
+  $("#results").classList.remove("hidden");
+  switchTab("network");
+  renderNodeList(p.web);
   const w = p.web;
   $("#world-summary").innerHTML =
     `<span class="chip"><b>${w.n_nodes}</b> events</span>
      <span class="chip"><b>${w.n_edges}</b> causal links</span>
      <span class="chip"><b>${w.nodes.filter((n) => n.type === "root").length}</b> starting events</span>
      <span class="chip">${escapeHtml(shorten(w.topic, 80))}</span>`;
-  network.resetWeb(w);
-  network.render();
+  if (!network.nodes.length) {
+    network.resetWeb(w);   // fresh load (no live build happened) — lay out from scratch
+    network.render();
+  } else {
+    network.setWeb(w);     // came from a live build — adopt final fields, keep positions
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 

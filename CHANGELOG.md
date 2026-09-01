@@ -6,6 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Live web growth**: the canvas now shows the causal web being built from
+  zero, wave by wave, synchronised with the engine (roots appear first, each
+  expansion wave animates in). The backend streams partial-web snapshots
+  through the async job record; the renderer grows new nodes beside their
+  parents without moving existing ones. After the build the web stays on
+  screen next to the intervention setup
 - **URL import**: paste a link, Riak fetches the page and fills the scenario
   box (title auto-fills the project name). SSRF-hardened: http/https only,
   private/loopback/link-local/reserved IPs rejected at every redirect hop,
