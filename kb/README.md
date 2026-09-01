@@ -1,6 +1,6 @@
 # Custom knowledge-base packs
 
-Drop JSON files here to extend Wanion's **offline** causal knowledge base — no
+Drop JSON files here to extend Riak's **offline** causal knowledge base — no
 code changes needed. Each file is one domain pack:
 
 ```json

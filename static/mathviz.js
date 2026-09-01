@@ -1,4 +1,4 @@
-/* Wanion · Advanced Mathematical Reasoning Visualizer.
+/* Riak · Advanced Mathematical Reasoning Visualizer.
  *
  * Reads the *existing* prediction/causal result (web + prediction, already
  * present in the frontend) and renders it as ONE continuous mathematical
@@ -27,10 +27,10 @@
   const COL = new Proxy({}, {
     get(_, k) {
       const map = {
-        sub: ["accent", "#3E6B4F"],   // substituted / carried input
+        sub: ["accent", "#2E8B6E"],   // substituted / carried input
         wt: ["accent2", "#33563F"],   // weight / operator
         res: ["amber", "#9A6B3A"],    // newly computed result
-        ok: ["pos", "#3E6B4F"],
+        ok: ["pos", "#2E8B6E"],
         bad: ["neg", "#B4554D"],
       };
       const m = map[k];

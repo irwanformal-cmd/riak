@@ -52,7 +52,7 @@ class TestLlmCache(unittest.TestCase):
         cls.port = cls.httpd.server_address[1]
         threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
         # redirect the cache to a temp file — never touch the real data/ dir
-        cls._tmp = tempfile.TemporaryDirectory(prefix="wanion-cache-test-")
+        cls._tmp = tempfile.TemporaryDirectory(prefix="riak-cache-test-")
         cls._orig_cache_path = llm._CACHE_PATH
         llm._CACHE_PATH = os.path.join(cls._tmp.name, "llm_cache.json")
         llm.set_runtime_config({

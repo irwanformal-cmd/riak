@@ -1,14 +1,14 @@
 """Optional LLM integration using only the standard library.
 
 Works with any OpenAI-compatible endpoint and a few common auth schemes, so you
-can point Wanion at OpenAI, DeepSeek, Qwen/DashScope, Ollama, LM Studio, or any
+can point Riak at OpenAI, DeepSeek, Qwen/DashScope, Ollama, LM Studio, or any
 custom provider (including a self-hosted harness).
 
 Configuration can come from two places, merged in priority order:
   1. runtime config (set from the web UI, persisted to data/llm_config.json)
   2. environment variables (see .env.example)
 
-If nothing is configured, every function returns None and Wanion transparently
+If nothing is configured, every function returns None and Riak transparently
 falls back to its deterministic rule-based engine — the app always runs.
 """
 
@@ -506,7 +506,7 @@ def _parse_batch_outcomes(reply: str, n_events: int, n: int) -> list[list[dict]]
 
 
 CAUSAL_SPEC = """\
-You are WANION, a physics- and mathematics-constrained causal simulation engine.
+You are RIAK, a physics- and mathematics-constrained causal simulation engine.
 
 YOUR ONLY JOB PER CALL: list the IMMEDIATE plausible next states of the CURRENT node. You answer
 ONE question: "Given this exact current state and its history, what can happen NEXT, one causal

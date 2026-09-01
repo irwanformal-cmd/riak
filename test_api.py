@@ -42,7 +42,7 @@ class TestAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # isolate storage: temp data dir + a private projects dict
-        cls._tmp = tempfile.TemporaryDirectory(prefix="wanion-test-")
+        cls._tmp = tempfile.TemporaryDirectory(prefix="riak-test-")
         cls._orig_data_dir = server.DATA_DIR
         cls._orig_llm_config_path = server.LLM_CONFIG_PATH
         server.DATA_DIR = cls._tmp.name
@@ -267,7 +267,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(body["format"], "html")
         self.assertTrue(body["filename"].endswith(".html"))
         self.assertIn("<!doctype html>", body["content"].lower())
-        self.assertIn("Wanion", body["content"])
+        self.assertIn("Riak", body["content"])
 
     def test_async_job_pattern(self):
         status, body = self._post("/api/projects", {

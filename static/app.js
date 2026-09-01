@@ -1,4 +1,4 @@
-/* Wanion · causal prediction engine, frontend logic. */
+/* Riak · causal prediction engine, frontend logic. */
 
 /* ------------------------------------------------------------------ i18n */
 const I18N = {
@@ -6,7 +6,7 @@ const I18N = {
     tagline: "Causal prediction engine · “if this, then what?”",
     projects: "Projects", newProject: "+ New scenario", samples: "Try a sample", more: "More",
     buildTitle: "Describe the scenario",
-    buildHint: "Paste a scenario, a decision, or a “what if” question. Wanion maps out the web of consequences · what this causes, and what those cause next.",
+    buildHint: "Paste a scenario, a decision, or a “what if” question. Riak maps out the web of consequences · what this causes, and what those cause next.",
     seedPh: "Paste your scenario here… (e.g. “the government raises fuel prices”, “a city bans private cars”)",
     namePh: "Scenario name",
     build: "Map the consequences",
@@ -24,15 +24,15 @@ const I18N = {
     summary: "Prediction", chain: "Most likely path", outcomes: "Top outcomes", web: "Causal web",
     generatedBy: "Consequences reasoned by", ruleBased: "rule-based engine", llm: "language model",
     networkHint: "Each node is an event/consequence · a line means “causes” · drag to pan · scroll to zoom · click to inspect · double-click to chat with a node · ⛓ connects two nodes",
-    explainHint: "Pick an event to discuss it with Wanion · it can grow the web around it, and you can edit any node.",
+    explainHint: "Pick an event to discuss it with Riak · it can grow the web around it, and you can edit any node.",
     chatPlaceholder: "Ask about this event, or propose a “what if”…",
-    send: "Send", you: "You", aiDev: "Wanion", rename: "Rename", delete: "Delete",
+    send: "Send", you: "You", aiDev: "Riak", rename: "Rename", delete: "Delete",
     connect: "Connect", addConsequence: "Add consequence", connectModeTitle: "Connect mode",
     disconnect: "Disconnect", renamed: "Node renamed.", deleted: "Node deleted.",
     connected: "Nodes linked.", disconnected: "Link removed.", added: "Node added.",
     thinking: "thinking…", editNodePh: "New name for this event", addConsPh: "A new consequence of this event…",
     settings: "Settings", language: "Language", theme: "Theme", reasoningLevel: "Reasoning level",
-    llmSettings: "LLM provider settings", llmSettingsHint: "Connect Wanion to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.", llmTest: "Test connection", llmSave: "Save", llmTestOk: "Connection OK", llmTestFail: "Connection failed", llmSaved: "Saved · provider configured",
+    llmSettings: "LLM provider settings", llmSettingsHint: "Connect Riak to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.", llmTest: "Test connection", llmSave: "Save", llmTestOk: "Connection OK", llmTestFail: "Connection failed", llmSaved: "Saved · provider configured",
     undo: "Undo", redo: "Redo",
     compareScenarios: "Compare scenarios", addScenario: "+ Add scenario", runComparison: "Run comparison",
     comparing: "Running comparison…", compareDone: "Comparison complete.", compareResults: "Scenario comparison",
@@ -48,7 +48,7 @@ const I18N = {
     tagline: "Mesin prediksi sebab-akibat · “kalau ini, terus apa?”",
     projects: "Proyek", newProject: "+ Skenario baru", samples: "Coba contoh", more: "Lainnya",
     buildTitle: "Jelaskan skenarionya",
-    buildHint: "Tempel skenario, keputusan, atau pertanyaan “bagaimana jika”. Wanion memetakan jaring konsekuensinya · apa yang ditimbulkannya, dan apa yang ditimbulkan setelahnya.",
+    buildHint: "Tempel skenario, keputusan, atau pertanyaan “bagaimana jika”. Riak memetakan jaring konsekuensinya · apa yang ditimbulkannya, dan apa yang ditimbulkan setelahnya.",
     seedPh: "Tempel skenario di sini… (mis. “pemerintah menaikkan harga BBM”, “kota melarang mobil pribadi”)",
     namePh: "Nama skenario",
     build: "Petakan konsekuensinya",
@@ -66,15 +66,15 @@ const I18N = {
     summary: "Prediksi", chain: "Jalur paling mungkin", outcomes: "Hasil teratas", web: "Jaring sebab-akibat",
     generatedBy: "Konsekuensi dinalar oleh", ruleBased: "mesin berbasis aturan", llm: "model bahasa",
     networkHint: "Setiap node = kejadian/konsekuensi · garis berarti “menyebabkan” · seret untuk geser · scroll untuk zoom · klik untuk lihat · klik ganda untuk diskusi · ⛓ menghubungkan dua node",
-    explainHint: "Pilih sebuah peristiwa untuk mendiskusikannya dengan Wanion · ia bisa mengembangkan jaring di sekitarnya, dan kamu bisa mengedit node apa pun.",
+    explainHint: "Pilih sebuah peristiwa untuk mendiskusikannya dengan Riak · ia bisa mengembangkan jaring di sekitarnya, dan kamu bisa mengedit node apa pun.",
     chatPlaceholder: "Tanyakan tentang peristiwa ini, atau ajukan “bagaimana jika”…",
-    send: "Kirim", you: "Kamu", aiDev: "Wanion", rename: "Ganti nama", delete: "Hapus",
+    send: "Kirim", you: "Kamu", aiDev: "Riak", rename: "Ganti nama", delete: "Hapus",
     connect: "Hubungkan", addConsequence: "Tambah konsekuensi", connectModeTitle: "Mode hubung",
     disconnect: "Putuskan", renamed: "Node diganti nama.", deleted: "Node dihapus.",
     connected: "Node terhubung.", disconnected: "Kaitan dihapus.", added: "Node ditambahkan.",
     thinking: "berpikir…", editNodePh: "Nama baru untuk peristiwa ini", addConsPh: "Konsekuensi baru dari peristiwa ini…",
     settings: "Pengaturan", language: "Bahasa", theme: "Tema", reasoningLevel: "Level reasoning",
-    llmSettings: "Pengaturan provider LLM", llmSettingsHint: "Hubungkan Wanion ke provider OpenAI-compatible apa pun · DeepSeek, OpenAI, Qwen, Ollama, atau endpoint custom. Kosongkan untuk tetap mode offline (berbasis aturan).", llmTest: "Tes koneksi", llmSave: "Simpan", llmTestOk: "Koneksi OK", llmTestFail: "Koneksi gagal", llmSaved: "Tersimpan · provider terkonfigurasi",
+    llmSettings: "Pengaturan provider LLM", llmSettingsHint: "Hubungkan Riak ke provider OpenAI-compatible apa pun · DeepSeek, OpenAI, Qwen, Ollama, atau endpoint custom. Kosongkan untuk tetap mode offline (berbasis aturan).", llmTest: "Tes koneksi", llmSave: "Simpan", llmTestOk: "Koneksi OK", llmTestFail: "Koneksi gagal", llmSaved: "Tersimpan · provider terkonfigurasi",
     undo: "Urungkan", redo: "Lakukan lagi",
     compareScenarios: "Bandingkan skenario", addScenario: "+ Tambah skenario", runComparison: "Jalankan perbandingan",
     comparing: "Menjalankan perbandingan…", compareDone: "Perbandingan selesai.", compareResults: "Perbandingan skenario",
@@ -90,7 +90,7 @@ const I18N = {
     tagline: "因果预测引擎 · “如果这样，会怎样？”",
     projects: "项目", newProject: "+ 新场景", samples: "试试示例", more: "更多",
     buildTitle: "描述场景",
-    buildHint: "粘贴场景、决策或“如果”问题。Wanion 会绘制出后果网络。",
+    buildHint: "粘贴场景、决策或“如果”问题。Riak 会绘制出后果网络。",
     seedPh: "在此粘贴场景…",
     namePh: "场景名称",
     build: "绘制后果", setupTitle: "添加干预",
@@ -106,15 +106,15 @@ const I18N = {
     summary: "预测", chain: "最可能路径", outcomes: "首要结果", web: "因果网络",
     generatedBy: "推理方式", ruleBased: "规则引擎", llm: "语言模型",
     networkHint: "每个节点 = 事件/后果 · 连线表示“导致” · 拖动平移 · 滚轮缩放 · 点击查看 · 双击讨论 · ⛓ 连接两个节点",
-    explainHint: "选择事件与 Wanion 讨论·它可以在其周围扩展网络，你也可以编辑任意节点。",
+    explainHint: "选择事件与 Riak 讨论·它可以在其周围扩展网络，你也可以编辑任意节点。",
     chatPlaceholder: "询问此事件，或提出“如果”……",
-    send: "发送", you: "你", aiDev: "Wanion", rename: "重命名", delete: "删除",
+    send: "发送", you: "你", aiDev: "Riak", rename: "重命名", delete: "删除",
     connect: "连接", addConsequence: "添加后果", connectModeTitle: "连接模式",
     disconnect: "断开", renamed: "节点已重命名。", deleted: "节点已删除。",
     connected: "节点已连接。", disconnected: "连接已移除。", added: "节点已添加。",
     thinking: "思考中…", editNodePh: "此事件的新名称", addConsPh: "此事件的新后果……",
     settings: "设置", language: "语言", theme: "主题", reasoningLevel: "推理等级",
-    llmSettings: "LLM 提供商设置", llmSettingsHint: "将 Wanion 连接到任何 OpenAI 兼容提供商。留空则保持离线（基于规则）模式。", llmTest: "测试连接", llmSave: "保存", llmTestOk: "连接成功", llmTestFail: "连接失败", llmSaved: "已保存",
+    llmSettings: "LLM 提供商设置", llmSettingsHint: "将 Riak 连接到任何 OpenAI 兼容提供商。留空则保持离线（基于规则）模式。", llmTest: "测试连接", llmSave: "保存", llmTestOk: "连接成功", llmTestFail: "连接失败", llmSaved: "已保存",
     undo: "撤销", redo: "重做",
     compareScenarios: "对比场景", addScenario: "+ 添加场景", runComparison: "运行对比",
     comparing: "正在运行对比…", compareDone: "对比完成。", compareResults: "场景对比",
@@ -265,7 +265,7 @@ const state = {
 const network = new NetworkRenderer($("#network-canvas"));
 
 /* ------------------------------------------------------------------ theme */
-const THEME_KEY = "wanion_theme";
+const THEME_KEY = "riak_theme";
 function applyTheme(choice) {
   const resolved = choice === "auto"
     ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
@@ -987,12 +987,12 @@ function drawSensSpark(canvas, pts) {
   const y0 = Math.min(...ys), y1 = Math.max(...ys);
   const px = (w) => 4 + ((w - x0) / Math.max(x1 - x0, 1e-9)) * (W - 8);
   const py = (c) => H - 4 - ((c - y0) / Math.max(y1 - y0, 1e-9)) * (H - 8);
-  ctx.strokeStyle = pal.accent || "#3E6B4F";
+  ctx.strokeStyle = pal.accent || "#136F8F";
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   pts.forEach((p, i) => { i ? ctx.lineTo(px(p.weight), py(p.confidence)) : ctx.moveTo(px(p.weight), py(p.confidence)); });
   ctx.stroke();
-  ctx.fillStyle = pal.accent || "#3E6B4F";
+  ctx.fillStyle = pal.accent || "#136F8F";
   pts.forEach((p) => { ctx.beginPath(); ctx.arc(px(p.weight), py(p.confidence), 1.8, 0, Math.PI * 2); ctx.fill(); });
 }
 

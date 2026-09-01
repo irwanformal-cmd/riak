@@ -317,7 +317,7 @@ class NetworkRenderer {
   _color(n) {
     if (n.type === "intervention") return NET_PAL.intervention || NET_PAL.accent2 || "#8A5BA0";
     if (n.type === "root") return NET_PAL.root || NET_PAL.accent || "#3B6EA5";
-    if (n.polarity >= 0.25) return NET_PAL.pos || "#3E6B4F";
+    if (n.polarity >= 0.25) return NET_PAL.pos || "#2E8B6E";
     if (n.polarity <= -0.25) return NET_PAL.neg || "#B4554D";
     return NET_PAL.neutral || "#8A9086";
   }
@@ -460,7 +460,7 @@ class NetworkRenderer {
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
         ctx.arc(x, y, r + 7, 0, Math.PI * 2);
-        ctx.strokeStyle = NET_PAL.pos || "#3E6B4F";
+        ctx.strokeStyle = NET_PAL.pos || "#2E8B6E";
         ctx.lineWidth = 2;
         ctx.stroke();
         ctx.restore();
@@ -492,7 +492,7 @@ class NetworkRenderer {
     const bw = ctx.measureText(msg).width + 18;
     const bh = 28;
     ctx.fillStyle = NET_PAL.cardBg || "rgba(255,255,255,.97)";
-    ctx.strokeStyle = NET_PAL.pos || "#3E6B4F";
+    ctx.strokeStyle = NET_PAL.pos || "#2E8B6E";
     ctx.beginPath(); ctx.roundRect(12, 12, bw, bh, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = NET_PAL.text || "#1F2320";
     ctx.textAlign = "left";
@@ -706,12 +706,12 @@ class NetworkRenderer {
     this._draw();
     const a = document.createElement("a");
     a.href = this.canvas.toDataURL("image/png");
-    a.download = "wanion-causal-web.png";
+    a.download = "riak-causal-web.png";
     a.click();
   }
 }
 
 window.NetworkRenderer = NetworkRenderer;
 Object.defineProperty(window, "POLARITY_COLORS", {
-  get() { return { pos: NET_PAL.pos || "#3E6B4F", neg: NET_PAL.neg || "#B4554D", neutral: NET_PAL.neutral || "#8A9086" }; },
+  get() { return { pos: NET_PAL.pos || "#2E8B6E", neg: NET_PAL.neg || "#B4554D", neutral: NET_PAL.neutral || "#8A9086" }; },
 });

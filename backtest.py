@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backtest Wanion's predictions against historical scenarios with known outcomes.
+"""Backtest Riak's predictions against historical scenarios with known outcomes.
 
 Each case in backtests/*.json describes a real historical episode and the kind of
 outcome that actually materialised (as keyword alternatives). The engine runs
@@ -81,7 +81,7 @@ def main() -> int:
             rows.append({"name": case.get("name", "?"), "p_expected": 0.0,
                          "hit_at_6": False, "brier": 1.0, "match": f"ERROR: {exc}"})
 
-    print(f"\nWanion backtest — {len(rows)} historical scenario(s), offline rule-based mode\n")
+    print(f"\nRiak backtest — {len(rows)} historical scenario(s), offline rule-based mode\n")
     print(f"{'scenario':<42} {'P(expected)':>11} {'hit@6':>6} {'Brier':>7}")
     print("-" * 70)
     for r in rows:

@@ -1,4 +1,4 @@
-/* Minimal dependency-free canvas charting for Wanion. */
+/* Minimal dependency-free canvas charting for Riak. */
 
 const CHART_PAL = window.PALETTE || {};
 

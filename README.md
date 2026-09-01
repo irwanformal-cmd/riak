@@ -1,10 +1,10 @@
 <div align="center">
 
-# ◈ Wanion
+# ◈ Riak
 
 **A self-contained causal prediction engine.**
 
-*Paste a scenario — Wanion maps the web of consequences and computes the most likely outcome chain.*
+*Paste a scenario — Riak maps the web of consequences and computes the most likely outcome chain.*
 
 [English](#english) · [Bahasa Indonesia](#bahasa-indonesia)
 
@@ -14,7 +14,7 @@
 
 ## English
 
-**Wanion** turns a piece of text — a news story, a policy draft, a decision, a
+**Riak** turns a piece of text — a news story, a policy draft, a decision, a
 "what if" question — into a branching **cause → effect web** of events, then
 computes the most likely outcome chain through it.
 
@@ -23,7 +23,7 @@ deterministic rule-based causal engine — and *optionally* upgrades its
 reasoning with any OpenAI-compatible LLM when you provide a key.
 
 Originally inspired by the multi-agent concept of
-[666ghj/MiroFish](https://github.com/666ghj/MiroFish), Wanion is an original,
+[666ghj/MiroFish](https://github.com/666ghj/MiroFish), Riak is an original,
 independent implementation built around causal event webs instead of a cloud
 agent stack.
 
@@ -56,7 +56,7 @@ agent stack.
 
 ### Key properties
 
-| | Wanion |
+| | Riak |
 |---|---|
 | Runs offline / no API key | ✅ deterministic rule-based engine |
 | LLM integration | ✅ optional, any OpenAI-compatible endpoint |
@@ -87,7 +87,7 @@ cp .env.example .env       # edit and add LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
 python3 server.py
 ```
 
-Without a provider, Wanion runs fully offline on its deterministic rule-based
+Without a provider, Riak runs fully offline on its deterministic rule-based
 engine.
 
 ### Architecture
@@ -133,7 +133,7 @@ test_*.py            test suites (engine, mechanisms, determinism, HTTP API)
 Heavy endpoints (`/api/projects`, `/api/simulate`, `/api/develop`) accept
 `{"async": true}` → `202 {job_id}`; poll `GET /api/jobs/:id` for the result.
 Requests are limited to 2 MB and rate-limited per IP (default 600/min,
-`WANION_RATE_LIMIT`). Logs go to stderr and a rotating `server.log`.
+`RIAK_RATE_LIMIT`). Logs go to stderr and a rotating `server.log`.
 
 ### Custom knowledge-base packs
 
@@ -163,7 +163,7 @@ codebase. The swarm-intelligence *concept* is shared; no code was copied.
 
 ## Bahasa Indonesia
 
-**Wanion** mengubah sebuah teks — berita, draf kebijakan, keputusan, pertanyaan
+**Riak** mengubah sebuah teks — berita, draf kebijakan, keputusan, pertanyaan
 "bagaimana jika" — menjadi **jaring sebab → akibat** yang bercabang, lalu
 menghitung rantai hasil yang paling mungkin terjadi.
 

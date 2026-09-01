@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wanion · Causal Prediction Engine</title>
+  <title>Riak · Causal Prediction Engine</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..700&family=Comfortaa:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none'><g stroke='%23435946' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M47 24 C42 15 35 9 27 8'/><path d='M53 24 C58 15 65 9 73 8'/><circle cx='50' cy='27' r='3' fill='%23435946' stroke='none'/><path d='M50 31 C48.8 43 48.8 55 50 68'/><path d='M47 34 C37 14 16 6 9 16 C2 26 9 44 24 52 C34 57 44 55 47 49'/><path d='M53 34 C63 14 84 6 91 16 C98 26 91 44 76 52 C66 57 56 55 53 49'/><g stroke-width='1.8' opacity='.55'><path d='M43 35 C35 23 24 16 15 19'/><path d='M42 44 C33 35 22 31 13 33'/><path d='M57 35 C65 23 76 16 85 19'/><path d='M58 44 C67 35 78 31 87 33'/></g><path d='M47 55 C36 58 26 67 29 79 C32 89 44 89 48 79'/><path d='M53 55 C64 58 74 67 71 79 C68 89 56 89 52 79'/><g stroke-width='1.8' opacity='.55'><path d='M44 62 C37 65 33 71 36 78 C38 82 43 81 45 75'/><path d='M56 62 C63 65 67 71 64 78 C62 82 57 81 55 75'/></g></g></svg>">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="logo"><svg width="32" height="32" viewBox="0 0 100 100" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M47 24 C42 15 35 9 27 8"/><path d="M53 24 C58 15 65 9 73 8"/><circle cx="50" cy="27" r="2.8" fill="currentColor" stroke="none"/><path d="M50 31 C48.8 43 48.8 55 50 68"/><path d="M47 34 C37 14 16 6 9 16 C2 26 9 44 24 52 C34 57 44 55 47 49"/><path d="M53 34 C63 14 84 6 91 16 C98 26 91 44 76 52 C66 57 56 55 53 49"/><g stroke-width="1.5" opacity=".55"><path d="M43 35 C35 23 24 16 15 19"/><path d="M42 44 C33 35 22 31 13 33"/><path d="M57 35 C65 23 76 16 85 19"/><path d="M58 44 C67 35 78 31 87 33"/></g><path d="M47 55 C36 58 26 67 29 79 C32 89 44 89 48 79"/><path d="M53 55 C64 58 74 67 71 79 C68 89 56 89 52 79"/><g stroke-width="1.5" opacity=".55"><path d="M44 62 C37 65 33 71 36 78 C38 82 43 81 45 75"/><path d="M56 62 C63 65 67 71 64 78 C62 82 57 81 55 75"/></g></g></svg></span>
+      <span class="logo"><svg width="32" height="32" viewBox="0 0 100 100" fill="none" aria-hidden="true"><circle cx="50" cy="50" r="10" fill="currentColor"/><circle cx="50" cy="50" r="22" stroke="currentColor" stroke-width="6" opacity=".8" stroke-linecap="round" stroke-dasharray="112 27" transform="rotate(-40 50 50)"/><circle cx="50" cy="50" r="33" stroke="currentColor" stroke-width="5" opacity=".5" stroke-linecap="round" stroke-dasharray="172 36" transform="rotate(55 50 50)"/><circle cx="50" cy="50" r="43" stroke="currentColor" stroke-width="4" opacity=".28" stroke-linecap="round" stroke-dasharray="228 43" transform="rotate(150 50 50)"/></svg></span>
       <div class="brand-text">
-        <h1>wanion</h1>
+        <h1>riak</h1>
         <span class="version-badge" title="Version 1.0.0">v1.0.0</span>
       </div>
     </div>
@@ -56,7 +56,7 @@
     <section class="content">
       <section id="step-build" class="panel step">
         <h2><span class="stepnum">1</span> <span data-i18n="buildTitle">Describe the scenario</span></h2>
-        <p class="hint" data-i18n="buildHint">Paste a scenario, a decision, or a “what if” question. Wanion maps out the web of consequences · what this causes, and what those cause next.</p>
+        <p class="hint" data-i18n="buildHint">Paste a scenario, a decision, or a “what if” question. Riak maps out the web of consequences · what this causes, and what those cause next.</p>
         <textarea id="seed-text" rows="8" data-i18n-ph="seedPh"></textarea>
         <div class="row">
           <input id="project-name" type="text" data-i18n-ph="namePh">
@@ -131,7 +131,7 @@
           <div class="interact-layout">
             <div class="agent-pane">
               <h3 data-i18n="events">Events</h3>
-              <p class="hint hint-inline" data-i18n="explainHint">Pick an event to discuss it with Wanion · it can grow the web around it, and you can edit any node.</p>
+              <p class="hint hint-inline" data-i18n="explainHint">Pick an event to discuss it with Riak · it can grow the web around it, and you can edit any node.</p>
               <input id="node-search" type="text" class="node-search" data-i18n-ph="searchPh" placeholder="Search events…" autocomplete="off">
               <ul id="node-list" class="agent-list"></ul>
             </div>
@@ -190,7 +190,7 @@
         <h3 data-i18n="llmSettings">LLM provider settings</h3>
         <button id="settings-close" class="btn btn-icon">✕</button>
       </div>
-      <p class="hint" data-i18n="llmSettingsHint">Connect Wanion to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.</p>
+      <p class="hint" data-i18n="llmSettingsHint">Connect Riak to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.</p>
       <label class="field">Provider
         <select id="llm-provider">
           <option value="custom">Custom</option>
@@ -244,8 +244,8 @@
   <div id="toast" class="toast hidden"></div>
 
   <script>
-    window.PALETTE_LIGHT = { bg:"#F5F4F0", panel:"#FFFFFF", panel2:"#F1EFEA", border:"#DDD9D0", text:"#1F2320", muted:"#6E746B", accent:"#3E6B4F", accentRGB:[62,107,79], accent2:"#33563F", pos:"#27AE60", neg:"#EB5757", neutral:"#95A5A6", root:"#2F80ED", intervention:"#9B51E0", amber:"#9A6B3A", amberRGB:[154,107,58], axis:"#DDD9D0", axisText:"#6E746B", grid:"rgba(221,217,208,.6)", zeroLine:"rgba(110,116,107,.4)", label:"#1F2320", cardBg:"rgba(255,255,255,.97)", cardBorder:"#DDD9D0", edgeRGB:[134,140,130], negRGB:[180,85,77] };
-    window.PALETTE_DARK = { bg:"#141716", panel:"#212522", panel2:"#272C28", border:"#333A35", text:"#E6E9E4", muted:"#9BA39B", accent:"#6FA57C", accentRGB:[111,165,124], accent2:"#55855F", pos:"#43D17E", neg:"#F87171", neutral:"#B4BAB4", root:"#4FA3F7", intervention:"#C58AF0", amber:"#D9A558", amberRGB:[217,165,88], axis:"#333A35", axisText:"#9BA39B", grid:"rgba(51,58,53,.6)", zeroLine:"rgba(155,163,155,.4)", label:"#E6E9E4", cardBg:"rgba(33,37,34,.97)", cardBorder:"#333A35", edgeRGB:[110,118,112], negRGB:[224,131,121] };
+    window.PALETTE_LIGHT = { bg:"#F3F7F8", panel:"#FFFFFF", panel2:"#EEF4F5", border:"#D7E1E4", text:"#1A2429", muted:"#5F737C", accent:"#136F8F", accentRGB:[19,111,143], accent2:"#0D5670", pos:"#2E8B6E", neg:"#EB5757", neutral:"#95A5A6", root:"#2F80ED", intervention:"#9B51E0", amber:"#9A6B3A", amberRGB:[154,107,58], axis:"#D7E1E4", axisText:"#5F737C", grid:"rgba(215,225,228,.6)", zeroLine:"rgba(95,115,124,.4)", label:"#1A2429", cardBg:"rgba(255,255,255,.97)", cardBorder:"#D7E1E4", edgeRGB:[130,150,158], negRGB:[180,85,77] };
+    window.PALETTE_DARK = { bg:"#0F1519", panel:"#1A232A", panel2:"#202B33", border:"#2B3A44", text:"#E2EAEE", muted:"#8FA4AE", accent:"#58A9C7", accentRGB:[88,169,199], accent2:"#3F8AA8", pos:"#5FBF9B", neg:"#F87171", neutral:"#B4BAB4", root:"#4FA3F7", intervention:"#C58AF0", amber:"#D9A558", amberRGB:[217,165,88], axis:"#2B3A44", axisText:"#8FA4AE", grid:"rgba(43,58,68,.6)", zeroLine:"rgba(143,164,174,.4)", label:"#E2EAEE", cardBg:"rgba(26,35,42,.97)", cardBorder:"#2B3A44", edgeRGB:[100,120,130], negRGB:[224,131,121] };
     window.PALETTE = Object.assign({}, window.PALETTE_LIGHT);
   </script>
   <script async src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
