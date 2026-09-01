@@ -92,12 +92,18 @@ h3 { margin: 0; font-size: 11px; font-family: "IBM Plex Mono", ui-monospace, Men
   opacity: .8;
 }
 .brand-text h1 {
-  letter-spacing: .01em;
-  font-family: "Fraunces", Georgia, serif;
+  /* wordmark: mono instrument label, not serif — "riak" is a tool, not a magazine */
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   font-weight: 600;
-  font-size: 24px;
+  font-size: 21px;
+  letter-spacing: .08em;
   color: var(--brand);
   line-height: 1.1;
+}
+.brand-text h1::before {
+  content: "∿ ";   /* the wave — same symbol the UI uses for LLM/AI activity */
+  font-weight: 400;
+  opacity: .75;
 }
 .accent { color: var(--accent); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
