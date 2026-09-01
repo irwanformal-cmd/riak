@@ -44,6 +44,36 @@ const SIM_FRAMES = 90;      // settle animation length on a full (re)build
 const SIM_FRAMES_GROW = 55; // settle animation length when nodes are added
 const STEPS_PER_FRAME = 2;
 
+/* Cinematic pass — the "living graph" polish (glow, depth, ambient motion).
+ * All knobs live here so the feel can be tuned in one place. Everything is
+ * render-only: physics, hit-testing and interaction are untouched. */
+const CINE = {
+  breathe: 0.045,      // node radius oscillation (±4.5% — a heartbeat, not a bounce)
+  glowDark: 0.13,      // halo alpha behind key nodes (dark mode)
+  glowLight: 0.055,    // halo alpha (light mode — paper barely glows)
+  depthSize: 0.14,     // how much pseudo-depth scales node size (±14%)
+  depthAlpha: 0.22,    // how much far nodes fade
+  driftX: 9, driftY: 6,// idle camera sway amplitude (px)
+  idleAfterMs: 3500,   // sway starts after this much stillness
+  dust: 42,            // ambient particles (dark mode only)
+  pulses: 12,          // max light pulses travelling along edges
+  pulseSpeed: 0.22,    // edge pulses per second
+};
+
+// deterministic per-node hash → [0,1) — stable phase/depth across frames
+function _hash01(id) {
+  let h = 2166136261;
+  const s = String(id);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 16777619) | 0; }
+  return ((h >>> 0) % 100000) / 100000;
+}
+function _palIsDark() {
+  const hex = (NET_PAL.bg || "#FFFFFF").replace("#", "");
+  if (hex.length < 6) return false;
+  const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+}
+
 class NetworkRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -65,6 +95,23 @@ class NetworkRenderer {
     this.connectSource = null;
     this._relax = 0;        // frames of physics left to run
 
+    // cinematic state
+    this._t = 0;            // ambient clock (seconds)
+    this._driftX = 0; this._driftY = 0;   // idle camera sway (eased)
+    this._lastInteract = performance.now();
+    this._dust = [];        // ambient particles (deterministic, dark mode)
+    let s0 = 42;            // tiny LCG — stable starfield, no Math.random flicker
+    for (let i = 0; i < CINE.dust; i++) {
+      s0 = (s0 * 1664525 + 1013904223) >>> 0;
+      this._dust.push({ x: (s0 % 1000) / 1000, y: ((s0 >> 10) % 1000) / 1000,
+                        r: 0.6 + ((s0 >> 20) % 100) / 90, ph: ((s0 >> 8) % 628) / 100 });
+    }
+    // any gesture pauses the sway immediately
+    const touch = () => { this._lastInteract = performance.now(); };
+    canvas.addEventListener("pointerdown", touch, { passive: true });
+    canvas.addEventListener("wheel", touch, { passive: true });
+    canvas.addEventListener("pointermove", touch, { passive: true });
+
     this._bind();
     this._raf = requestAnimationFrame(this._loop.bind(this));
   }
@@ -77,16 +124,19 @@ class NetworkRenderer {
     const hadNodes = this.nodes.length > 0;
 
     this.nodes = (web.nodes || []).map((n) => {
+      // stable cinematic attributes: pseudo-depth + breath phase from the id
+      const hh = _hash01(n.id);
+      const z = hh * 2 - 1, phase = hh * Math.PI * 2;
       const p = prevPos[n.id];
       if (p) return {
         id: n.id, text: n.text || "", type: n.type || "consequence", level: n.level || 0,
         polarity: n.polarity || 0, probability: n.probability || 0,
-        x: p.x, y: p.y, vx: 0, vy: 0, pinned: p.pinned, fresh: false,
+        x: p.x, y: p.y, vx: 0, vy: 0, pinned: p.pinned, fresh: false, z, _phase: phase,
       };
       return {
         id: n.id, text: n.text || "", type: n.type || "consequence", level: n.level || 0,
         polarity: n.polarity || 0, probability: n.probability || 0,
-        x: 0, y: 0, vx: 0, vy: 0, pinned: false, fresh: true, grow: 0,
+        x: 0, y: 0, vx: 0, vy: 0, pinned: false, fresh: true, grow: 0, z, _phase: phase,
       };
     });
 
@@ -221,10 +271,11 @@ class NetworkRenderer {
   /* ------------------------------------------------------------ transforms */
   _cx() { return (this.canvas.clientWidth || this.canvas.width) / 2; }
   _cy() { return (this.canvas.clientHeight || this.canvas.height) / 2; }
-  _sx(x) { return x * this.camera.scale + this._cx() + this.camera.tx; }
-  _sy(y) { return y * this.camera.scale + this._cy() + this.camera.ty; }
-  _wx(sx) { return (sx - this._cx() - this.camera.tx) / this.camera.scale; }
-  _wy(sy) { return (sy - this._cy() - this.camera.ty) / this.camera.scale; }
+  // drift lives INSIDE the projection so hit-testing (_wx/_wy) stays consistent
+  _sx(x) { return x * this.camera.scale + this._cx() + this.camera.tx + this._driftX; }
+  _sy(y) { return y * this.camera.scale + this._cy() + this.camera.ty + this._driftY; }
+  _wx(sx) { return (sx - this._cx() - this.camera.tx - this._driftX) / this.camera.scale; }
+  _wy(sy) { return (sy - this._cy() - this.camera.ty - this._driftY) / this.camera.scale; }
 
   /* -------------------------------------------------------------- physics */
   _step() {
@@ -295,6 +346,17 @@ class NetworkRenderer {
   /* ---------------------------------------------------------------- drawing */
   _loop() {
     this._raf = requestAnimationFrame(this._loop.bind(this));
+    this._t += 1 / 60;
+    // idle sway: only when the user has been still for a while; eases in/out
+    if (performance.now() - this._lastInteract > CINE.idleAfterMs && this.nodes.length) {
+      const tx = Math.sin(this._t * 0.10) * CINE.driftX;
+      const ty = Math.cos(this._t * 0.13) * CINE.driftY;
+      this._driftX += (tx - this._driftX) * 0.008;
+      this._driftY += (ty - this._driftY) * 0.008;
+    } else {
+      this._driftX *= 0.92;
+      this._driftY *= 0.92;
+    }
     if (this._relax > 0) {
       for (let k = 0; k < STEPS_PER_FRAME; k++) this._step();
       this._relax--;
@@ -320,6 +382,12 @@ class NetworkRenderer {
     if (n.polarity >= 0.25) return NET_PAL.pos || "#2E8B6E";
     if (n.polarity <= -0.25) return NET_PAL.neg || "#B4554D";
     return NET_PAL.neutral || "#8A9086";
+  }
+
+  _rgbOf(col) {
+    const hex = (col || "#888888").replace("#", "");
+    if (hex.length < 6) return [136, 136, 136];
+    return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
   }
 
   // trace a node's path with a shape that encodes its role
@@ -390,6 +458,22 @@ class NetworkRenderer {
 
     if (!this.nodes.length) return;
 
+    // ambient dust (dark sonar waters only) — slow drift, zero interactivity
+    if (_palIsDark()) {
+      const acc = NET_PAL.accentRGB || [103, 232, 249];
+      ctx.save();
+      this._dust.forEach((d) => {
+        const dy = (d.y * h + this._t * 3 + d.ph * 10) % h;   // slow rise + wrap
+        const tw = 0.5 + 0.5 * Math.sin(this._t * 0.7 + d.ph); // gentle twinkle
+        ctx.globalAlpha = 0.028 + 0.05 * tw;
+        ctx.fillStyle = rgba(acc, 1);
+        ctx.beginPath();
+        ctx.arc(d.x * w, dy, d.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
     const selectedSet = this.selected
       ? new Set([this.selected, ...(this.adj[this.selected] || []), ...(this._path ? this._path.nodes : [])])
       : null;
@@ -428,14 +512,64 @@ class NetworkRenderer {
       ctx.stroke();
     });
 
+    // light pulses travelling along the strongest causal links — the web "breathes"
+    // causality. Capped at CINE.pulses for perf; prefers the selected path.
+    {
+      const pool = this._path && this._path.edges.size
+        ? this.edges.filter((e) => this._path.edges.has(e.source + "|" + e.target))
+        : [...this.edges].sort((a, b) => b.weight - a.weight).slice(0, CINE.pulses);
+      const acc = NET_PAL.accentRGB || [31, 59, 179];
+      ctx.save();
+      pool.slice(0, CINE.pulses).forEach((e) => {
+        const a = this.byId[e.source], b = this.byId[e.target];
+        if (!a || !b) return;
+        if (!inView(a.x, a.y) && !inView(b.x, b.y)) return;
+        const u = (this._t * CINE.pulseSpeed + _hash01(e.source + ">" + e.target)) % 1;
+        const sx = this._sx(a.x), sy = this._sy(a.y);
+        const ex = this._sx(b.x), ey = this._sy(b.y);
+        const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy) || 1;
+        const off = this._edgeCurve(e.source, e.target) * this.camera.scale;
+        const cx2 = (sx + ex) / 2 + (-dy / len) * off, cy2 = (sy + ey) / 2 + (dx / len) * off;
+        // quadratic bezier point at u
+        const px = (1 - u) * (1 - u) * sx + 2 * (1 - u) * u * cx2 + u * u * ex;
+        const py = (1 - u) * (1 - u) * sy + 2 * (1 - u) * u * cy2 + u * u * ey;
+        const fade = Math.sin(u * Math.PI);   // fade in/out along the trip
+        ctx.globalAlpha = 0.55 * fade;
+        ctx.fillStyle = rgba(acc, 1);
+        ctx.beginPath();
+        ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
     // nodes
+    const dark = _palIsDark();
+    const glowA = dark ? CINE.glowDark : CINE.glowLight;
     this.nodes.forEach((n) => {
       if (!inView(n.x, n.y)) return;
       const dim = selectedSet && !selectedSet.has(n.id);
       const x = this._sx(n.x), y = this._sy(n.y);
-      const r = this._radius(n, this.camera.scale);
+      // pseudo-depth: far nodes slightly smaller & dimmer; near nodes fuller
+      const depthS = 1 + (n.z || 0) * CINE.depthSize;
+      const depthF = 1 - CINE.depthAlpha * (1 - (n.z || 0)) / 2;
+      // breath: a slow heartbeat so the web feels alive even when settled
+      const breathe = 1 + CINE.breathe * Math.sin(this._t * 1.05 + (n._phase || 0));
+      const r = this._radius(n, this.camera.scale) * depthS * breathe;
       const col = this._color(n);
-      ctx.globalAlpha = dim ? 0.12 : (this.selected === n.id ? 1 : 0.92);
+      // halo behind key nodes — the MiroFish glow, render-cheap (no shadowBlur)
+      const key = n.type === "root" || n.type === "intervention" || topProb.has(n.id) ||
+                  this.selected === n.id || this.hovered === n.id;
+      if (key && !dim) {
+        const grad = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 3.4);
+        grad.addColorStop(0, rgba(this._rgbOf(col), glowA * 1.6));
+        grad.addColorStop(1, rgba(this._rgbOf(col), 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 3.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = (dim ? 0.12 : (this.selected === n.id ? 1 : 0.92)) * depthF;
       this._traceNode(ctx, x, y, r, n, topProb);
       ctx.fillStyle = col;
       ctx.fill();
@@ -471,7 +605,7 @@ class NetworkRenderer {
         (this._path && this._path.nodes.has(n.id));
       if (showLabel && !dim) {
         ctx.fillStyle = NET_PAL.label || "#1F2320";
-        ctx.font = "10px Inter, system-ui, sans-serif";
+        ctx.font = "10px 'Space Grotesk', system-ui, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(this._truncate(n.text, 22), x, y - r - 4);
       }
