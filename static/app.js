@@ -514,8 +514,8 @@ function renderInterventions() {
     const row = document.createElement("div");
     row.className = "intervention";
     row.innerHTML =
-      `<input type="text" value="${escapeHtml(inv.text)}" data-k="text" placeholder="What new event happens?">
-       <button class="rm" title="Remove">✕</button>`;
+      `<input type="text" value="${escapeHtml(inv.text)}" data-k="text" placeholder="${escapeHtml(t("interventionPh"))}">
+       <button class="rm" title="${escapeHtml(t("removeTitle"))}">✕</button>`;
     row.querySelector("input").addEventListener("change", (e) => { inv.text = e.target.value; });
     row.querySelector(".rm").onclick = () => { state.interventions.splice(i, 1); renderInterventions(); };
     box.appendChild(row);
@@ -523,8 +523,11 @@ function renderInterventions() {
 }
 
 function addIntervention() {
-  state.interventions.push({ text: "The government announces a new subsidy" });
+  state.interventions.push({ text: "" });
   renderInterventions();
+  // focus the new empty input so the user can type right away
+  const rows = document.querySelectorAll("#interventions .intervention input");
+  if (rows.length) rows[rows.length - 1].focus();
 }
 
 /* ------------------------------------------------------------------ A/B compare */
