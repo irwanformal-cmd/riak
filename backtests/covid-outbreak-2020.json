@@ -1,0 +1,7 @@
+{
+  "name": "COVID-19 outbreak 2020",
+  "seed_text": "A novel virus outbreak spreads across cities and hospitals report rising cases",
+  "lang": "en",
+  "seed": 2020,
+  "expect_any": ["healthcare demand", "preventive measures", "supply chain", "anxiety"]
+}

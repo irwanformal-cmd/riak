@@ -1,0 +1,7 @@
+{
+  "name": "Deforestation and climate pressure",
+  "seed_text": "Deforestation and rising carbon emissions worsen floods and droughts across the region",
+  "lang": "en",
+  "seed": 2019,
+  "expect_any": ["extreme weather", "food and water security", "green investment", "relocate", "insurance"]
+}

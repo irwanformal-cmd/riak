@@ -13,6 +13,8 @@ explanation) honours the `lang` argument ("en" | "id").
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import random
 import re
 import uuid
@@ -132,6 +134,54 @@ _GENERIC = [
     ("policymakers face pressure to respond", "pembuat kebijakan tertekan untuk merespons", "leads_to", 0.55, 0.0),
     ("media coverage of the issue increases", "liputan media tentang isu ini meningkat", "leads_to", 0.5, 0.0),
 ]
+
+# ------------------------------------------------------------ custom KB packs
+# Users can extend the offline knowledge base by dropping JSON packs into kb/
+# next to the project root. Format per file:
+#   {"name": "my-domain",
+#    "pattern": "\\b(crypto|bitcoin)\\b",
+#    "rules": [{"en": "...", "id": "...", "relation": "leads_to",
+#               "weight": 0.6, "polarity": -0.3}, ...]}
+# Broken packs are skipped silently — the engine must always run.
+_KB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kb")
+_custom_kb: list | None = None
+
+
+def _load_custom_kb(force: bool = False) -> list:
+    """Load (and cache) user KB packs from kb/*.json, validated into _KB shape."""
+    global _custom_kb
+    if _custom_kb is not None and not force:
+        return _custom_kb
+    packs: list = []
+    if os.path.isdir(_KB_DIR):
+        for fn in sorted(os.listdir(_KB_DIR)):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(_KB_DIR, fn), encoding="utf-8") as f:
+                    pack = json.load(f)
+                pat = str(pack["pattern"])
+                re.compile(pat)  # validate the regex up front
+                rules = []
+                for r in pack.get("rules") or []:
+                    en = str(r.get("en") or "").strip()
+                    idn = str(r.get("id") or en).strip()
+                    rel = str(r.get("relation") or "leads_to").strip()
+                    w = clamp(float(r.get("weight", 0.5)), 0.0, 1.0)
+                    pol = clamp(float(r.get("polarity", 0.0)))
+                    if en:
+                        rules.append((en, idn, rel, round(w, 2), round(pol, 2)))
+                if rules:
+                    packs.append((pat, rules))
+            except Exception:  # noqa: BLE001 — a broken pack must never break the engine
+                continue
+    _custom_kb = packs
+    return packs
+
+
+def reload_kb() -> int:
+    """Force-reload custom KB packs (e.g. after the user drops a new file)."""
+    return len(_load_custom_kb(force=True))
 
 # Markers that an event is a PERSONAL daily-life act (first person going somewhere,
 # being late, commuting, waking up, arriving...). For these we must NOT fire the
@@ -436,7 +486,7 @@ def _rule_expand(event: str, n: int, rng: random.Random, lang: str = "en", ances
     instead of falling back to institutional generic consequences."""
     lang = _lang(lang)
     hits: list[tuple[str, str, str, float, float]] = []
-    for pat, cons in _KB:
+    for pat, cons in [*_load_custom_kb(), *_KB]:  # user packs first, then built-ins
         if re.search(pat, event):
             hits.extend(cons)
     # A PERSONAL daily-life act ("I go to school / I'm late") is not an education-policy
@@ -729,6 +779,29 @@ def _expand_many(items: list[tuple[str, str, str]], n: int, rng: random.Random, 
     return out
 
 
+# ------------------------------------------------------------- time dimension
+# Rough delay (days) until a consequence materialises, by the kind of event.
+# Heuristic, deliberately coarse — it gives the prediction a timeline, not a clock.
+_DELAY_RULES = [
+    (r"\b(protest|riot|strike|unrest|attack|crash|accident|viral|trending|demo|rusuh|mogok|serangan|kecelakaan)\b", 2),
+    (r"\b(media|news|coverage|attention|debate|anxiety|liputan|perdebatan|kecemasan)\b", 3),
+    (r"\b(health|disease|hospital|vaccine|outbreak|supply chain|wabah|penyakit|vaksin|rumah sakit)\b", 14),
+    (r"\b(price|cost|inflation|budget|market|demand|supply|income|spending|harga|inflasi|pasar|anggaran)\b", 30),
+    (r"\b(regulat|law|policy|ban|legislation|compliance|enforcement|undang|regulasi|kebijakan|larangan)\b", 90),
+    (r"\b(education|school|curriculum|skill|training|sekolah|kurikulum|pelatihan|keterampilan)\b", 180),
+    (r"\b(climate|environment|deforest|emission|carbon|iklim|lingkungan|deforestasi|emisi)\b", 365),
+]
+_DELAY_DEFAULT = 21
+
+
+def estimate_delay_days(text: str) -> int:
+    """Heuristic days-until-effect for a consequence text (domain-keyword based)."""
+    for pat, days in _DELAY_RULES:
+        if re.search(pat, text or "", re.I):
+            return days
+    return _DELAY_DEFAULT
+
+
 def _slug(s: str) -> str:
     return hashlib.sha1(s.encode("utf-8")).hexdigest()[:8]
 
@@ -832,7 +905,8 @@ def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str =
                               "weight": cand["probability"], "mechanism": cand.get("mechanism"),
                               "state_changes": cand.get("state_changes"),
                               "formula": cand.get("formula"), "uncertainty": cand.get("uncertainty"),
-                              "operator": cand.get("operator")})
+                              "operator": cand.get("operator"),
+                              "delay_days": estimate_delay_days(node_by_id[cid]["text"])})
                 parent[cid] = nid
                 next_frontier.append((cid, level + 1))
         frontier = next_frontier
@@ -855,7 +929,14 @@ def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str =
 
 
 def predict(web: dict, lang: str = "en") -> dict:
-    """Propagate likelihood through the causal web and find the dominant chain."""
+    """Propagate likelihood through the causal web and find the dominant chain.
+
+    Propagation is multi-pass (Bellman-Ford style): a single level-ordered pass
+    suffices for the tree-shaped webs build_web produces, but user edits can add
+    back-edges that form FEEDBACK LOOPS (protest → repression → bigger protest).
+    Extra passes let probability flow around such loops until it converges —
+    products of weights < 1 damp each lap, so the process always terminates.
+    """
     lang = _lang(lang)
     nodes = {n["id"]: n for n in web["nodes"]}
     for n in web["nodes"]:
@@ -863,13 +944,22 @@ def predict(web: dict, lang: str = "en") -> dict:
         n["_best_parent"] = None
 
     ordered = sorted(web["edges"], key=lambda e: nodes[e["source"]]["level"])
-    for e in ordered:
-        s = nodes[e["source"]]
-        t = nodes[e["target"]]
-        cand = s["probability"] * e["weight"]
-        if cand > t["probability"]:
-            t["probability"] = cand
-            t["_best_parent"] = e["source"]
+    max_passes = min(len(nodes) + 1, 50)
+    feedback = False
+    for pass_no in range(max_passes):
+        improved = False
+        for e in ordered:
+            s = nodes[e["source"]]
+            t = nodes[e["target"]]
+            cand = s["probability"] * e["weight"]
+            if cand > t["probability"] + 1e-12:
+                t["probability"] = cand
+                t["_best_parent"] = e["source"]
+                improved = True
+        if not improved:
+            break
+        if pass_no > 0:
+            feedback = True  # a later pass still improved things -> a loop is active
 
     has_out = {e["source"] for e in web["edges"]}
     leaves = [n for n in web["nodes"] if n["id"] not in has_out]
@@ -878,7 +968,9 @@ def predict(web: dict, lang: str = "en") -> dict:
     chain: list[str] = []
     if leaves:
         cur: str | None = leaves[0]["id"]
-        while cur:
+        seen: set[str] = set()
+        while cur and cur not in seen:
+            seen.add(cur)
             chain.append(cur)
             cur = nodes[cur].get("_best_parent")
         chain.reverse()
@@ -886,16 +978,113 @@ def predict(web: dict, lang: str = "en") -> dict:
     for n in web["nodes"]:
         n.pop("_best_parent", None)
 
+    # timeline: cumulative delay along the most likely chain
+    edge_delay = {(e["source"], e["target"]): e.get("delay_days") for e in web["edges"]}
+    timeline = []
+    day = 0
+    for i, cid in enumerate(chain):
+        if i:
+            d = edge_delay.get((chain[i - 1], cid))
+            day += d if isinstance(d, (int, float)) else estimate_delay_days(nodes[cid]["text"])
+        timeline.append({"id": cid, "text": nodes[cid]["text"], "day": int(day)})
+
     chain_nodes = [nodes[c] for c in chain]
     top = leaves[:6]
     return {
         "most_likely_chain": [c for c in chain],
         "confidence": round((leaves[0]["probability"] if leaves else 0.0), 3),
+        "feedback_loop": feedback,
+        "timeline": timeline,
+        "horizon_days": timeline[-1]["day"] if timeline else 0,
         "top_outcomes": [
             {"id": n["id"], "text": n["text"], "probability": round(n["probability"], 3)}
             for n in top
         ],
         "summary": _summarize(web, chain_nodes, lang),
+    }
+
+
+def _percentile(sorted_vals: list[float], q: float) -> float:
+    """Simple linear-interpolation percentile; sorted_vals must be sorted, non-empty."""
+    if len(sorted_vals) == 1:
+        return sorted_vals[0]
+    pos = q * (len(sorted_vals) - 1)
+    lo = int(pos)
+    hi = min(lo + 1, len(sorted_vals) - 1)
+    frac = pos - lo
+    return sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac
+
+
+def predict_ensemble(web: dict, lang: str = "en", runs: int = 25, noise: float = 0.15,
+                     seed: int | None = None) -> dict:
+    """Monte-Carlo confidence intervals over the edge weights.
+
+    Re-runs max-product propagation `runs` times, jittering every edge weight by
+    ±`noise` (multiplicative, clamped to [0,1]). Reports how stable the prediction
+    is: per-outcome mean probability with a P10–P90 interval, the confidence CI,
+    and how often the modal chain wins (chain stability). Deterministic per seed.
+    Does NOT mutate the web.
+    """
+    runs = max(2, int(runs))
+    noise = clamp(float(noise), 0.0, 0.9)
+    rng = random.Random(web.get("seed", 0) if seed is None else seed)
+    nodes = {n["id"]: n for n in web["nodes"]}
+    edges = web["edges"]
+    ordered_idx = sorted(range(len(edges)), key=lambda i: nodes[edges[i]["source"]]["level"])
+    has_out = {e["source"] for e in edges}
+    leaf_ids = [n["id"] for n in web["nodes"] if n["id"] not in has_out]
+
+    acc: dict[str, list[float]] = {n["id"]: [] for n in web["nodes"]}
+    chain_wins: dict[tuple, int] = {}
+    conf_samples: list[float] = []
+
+    for _ in range(runs):
+        jitter = [clamp(e["weight"] * (1 + rng.uniform(-noise, noise)), 0.0, 1.0) for e in edges]
+        prob = {nid: (1.0 if n["type"] in ("root", "intervention") else 0.0)
+                for nid, n in nodes.items()}
+        best: dict[str, str | None] = {}
+        for i in ordered_idx:
+            e = edges[i]
+            cand = prob[e["source"]] * jitter[i]
+            if cand > prob[e["target"]]:
+                prob[e["target"]] = cand
+                best[e["target"]] = e["source"]
+        leaves = sorted(leaf_ids, key=lambda nid: -prob[nid])
+        if leaves:
+            conf_samples.append(prob[leaves[0]])
+            cur: str | None = leaves[0]
+            chain: list[str] = []
+            seen: set[str] = set()
+            while cur and cur not in seen:
+                seen.add(cur)
+                chain.append(cur)
+                cur = best.get(cur)
+            chain_wins[tuple(reversed(chain))] = chain_wins.get(tuple(reversed(chain)), 0) + 1
+        for nid, p in prob.items():
+            acc[nid].append(p)
+
+    def _stats(vals: list[float]) -> dict:
+        vals = sorted(vals)
+        return {"mean": round(sum(vals) / len(vals), 3),
+                "lo": round(_percentile(vals, 0.10), 3),
+                "hi": round(_percentile(vals, 0.90), 3)}
+
+    modal_chain, modal_wins = ((), 0)
+    if chain_wins:
+        modal_chain, modal_wins = max(chain_wins.items(), key=lambda kv: kv[1])
+
+    top_leaf_stats = sorted(
+        ({"id": nid, "text": nodes[nid]["text"], **_stats(acc[nid])} for nid in leaf_ids),
+        key=lambda d: -d["mean"])[:6]
+    keep = {d["id"] for d in top_leaf_stats} | set(modal_chain)
+    return {
+        "runs": runs,
+        "noise": noise,
+        "confidence": _stats(conf_samples) if conf_samples else {"mean": 0.0, "lo": 0.0, "hi": 0.0},
+        "chain_stability": round(modal_wins / runs, 3),
+        "modal_chain": list(modal_chain),
+        "top_outcomes": top_leaf_stats,
+        "per_node": {nid: _stats(acc[nid]) for nid in keep},
     }
 
 
@@ -1022,7 +1211,8 @@ def apply_interventions(web: dict, interventions: list[dict], rng: random.Random
                                   "weight": cand["probability"], "mechanism": cand.get("mechanism"),
                                   "state_changes": cand.get("state_changes"),
                                   "formula": cand.get("formula"), "uncertainty": cand.get("uncertainty"),
-                                  "operator": cand.get("operator")})
+                                  "operator": cand.get("operator"),
+                                  "delay_days": estimate_delay_days(node_by_id[tid]["text"])})
                     parent[tid] = cid
                     next_frontier.append((tid, level + 1))
             frontier = next_frontier
@@ -1163,7 +1353,8 @@ def apply_mutations(web: dict, mutations: list[dict], selected_node_id: str | No
                 cid = add_node(text, "consequence", int(parent["level"]) + 1)
                 w = round(rng.uniform(0.55, 0.88), 2)
                 if (parent["id"], cid) not in edge_keys:
-                    edges.append({"source": parent["id"], "target": cid, "relation": rel, "weight": w})
+                    edges.append({"source": parent["id"], "target": cid, "relation": rel, "weight": w,
+                                  "delay_days": estimate_delay_days(text)})
                     edge_keys.add((parent["id"], cid))
                 applied.append({"op": "add_node", "id": cid, "to": parent["id"], "text": text, "relation": rel, "weight": w})
             elif op == "add_root":
@@ -1178,7 +1369,8 @@ def apply_mutations(web: dict, mutations: list[dict], selected_node_id: str | No
                 if s in node_by_id and t in node_by_id and s != t and (s, t) not in edge_keys:
                     rel = m.get("relation") if m.get("relation") in RELATIONS else "causes"
                     w = round(rng.uniform(0.55, 0.88), 2)
-                    edges.append({"source": s, "target": t, "relation": rel, "weight": w})
+                    edges.append({"source": s, "target": t, "relation": rel, "weight": w,
+                                  "delay_days": estimate_delay_days(node_by_id[t]["text"])})
                     edge_keys.add((s, t))
                     applied.append({"op": "add_edge", "from": s, "to": t, "relation": rel, "weight": w})
             elif op == "remove_edge":

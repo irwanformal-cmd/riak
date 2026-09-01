@@ -1,0 +1,7 @@
+{
+  "name": "AI automation wave 2023",
+  "seed_text": "Companies rapidly adopt AI automation across offices, logistics and customer service",
+  "lang": "en",
+  "seed": 2023,
+  "expect_any": ["displacement", "productivity", "skills", "regulators scrutinize", "misinformation"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Social media regulation push",
+  "seed_text": "The government introduces strict new regulation and compliance rules for social media platforms",
+  "lang": "en",
+  "seed": 2021,
+  "expect_any": ["compliance costs", "legal challenges", "public debate", "avoid the restriction"]
+}

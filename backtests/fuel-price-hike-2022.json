@@ -1,0 +1,7 @@
+{
+  "name": "Indonesia fuel price hike 2022",
+  "seed_text": "The government raises subsidised fuel prices by 30 percent to ease budget pressure",
+  "lang": "en",
+  "seed": 2022,
+  "expect_any": ["dissatisfaction", "protest", "demonstration", "budgets tighten", "cost of living"]
+}

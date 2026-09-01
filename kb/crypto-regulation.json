@@ -1,0 +1,11 @@
+{
+  "name": "crypto-regulation",
+  "pattern": "\\b(crypto|bitcoin|ethereum|token|blockchain|kripto)\\b",
+  "rules": [
+    {"en": "exchanges face liquidity pressure", "id": "bursa kripto menghadapi tekanan likuiditas", "relation": "leads_to", "weight": 0.6, "polarity": -0.4},
+    {"en": "trading volume shifts to offshore platforms", "id": "volume perdagangan beralih ke platform luar negeri", "relation": "leads_to", "weight": 0.55, "polarity": -0.2},
+    {"en": "compliance costs for crypto businesses rise", "id": "biaya kepatuhan bisnis kripto naik", "relation": "increases", "weight": 0.65, "polarity": -0.3},
+    {"en": "retail investor protection improves", "id": "perlindungan investor ritel membaik", "relation": "leads_to", "weight": 0.5, "polarity": 0.4},
+    {"en": "innovation moves to friendlier jurisdictions", "id": "inovasi pindah ke yurisdiksi yang lebih ramah", "relation": "leads_to", "weight": 0.45, "polarity": -0.3}
+  ]
+}

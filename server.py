@@ -164,8 +164,10 @@ def _load_projects():
 
 def _save_project(p: dict):
     os.makedirs(DATA_DIR, exist_ok=True)
+    # underscore-prefixed keys (undo/redo stacks) are session state — never persisted
+    clean = {k: v for k, v in p.items() if not k.startswith("_")}
     with open(os.path.join(DATA_DIR, f"{p['id']}.json"), "w", encoding="utf-8") as f:
-        json.dump(p, f, ensure_ascii=False, indent=2)
+        json.dump(clean, f, ensure_ascii=False, indent=2)
 
 
 # ---------------------------------------------------------------- llm config
@@ -369,6 +371,11 @@ def handle_simulate(body: dict) -> dict:
             web = causal.apply_interventions(web, interventions, random.Random(config["seed"] + 104729), config, lang=lang)
 
         prediction = causal.predict(web, lang=lang)
+        # Monte-Carlo confidence intervals over edge-weight uncertainty
+        ens_runs = int(config.get("ensemble_runs", 25) or 0)
+        if ens_runs > 1:
+            trajectory.push("phase", f"monte-carlo ensemble ({ens_runs} runs)")
+            prediction["ensemble"] = causal.predict_ensemble(web, lang=lang, runs=ens_runs)
         _finish_trajectory(job, ok=True)
     except Exception:
         _finish_trajectory(job, ok=False)
@@ -479,6 +486,7 @@ def _node_context(web: dict, node_id: str, limit: int = 12) -> list[str]:
 
 def _store_result(p: dict, web: dict, prediction: dict):
     with _lock:
+        _push_history(p)
         p["result_web"] = web
         p["prediction"] = prediction
         _save_project(p)
@@ -543,6 +551,139 @@ def handle_edit(body: dict) -> dict:
     return {"mutations": applied, "web": web, "prediction": prediction}
 
 
+# ------------------------------------------------------------------ undo/redo
+# Every result mutation (simulate/develop/edit) snapshots the previous state, so
+# the UI can offer real undo/redo across all graph-changing operations.
+_HISTORY_MAX = 20
+
+
+def _push_history(p: dict):
+    snap = {"result_web": p.get("result_web"), "prediction": p.get("prediction")}
+    p.setdefault("_history", []).append(snap)
+    p["_history"] = p["_history"][-_HISTORY_MAX:]
+    p["_future"] = []  # a new edit invalidates the redo stack
+
+
+def handle_undo(body: dict) -> dict:
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+        if not p:
+            raise ValueError("project not found")
+        hist = p.get("_history") or []
+        if not hist:
+            raise ValueError("nothing to undo")
+        p.setdefault("_future", []).append(
+            {"result_web": p.get("result_web"), "prediction": p.get("prediction")})
+        snap = hist.pop()
+        p["result_web"] = snap["result_web"]
+        p["prediction"] = snap["prediction"]
+        _save_project(p)
+        can_undo, can_redo = bool(hist), bool(p.get("_future"))
+    return {"web": _active_web(p), "prediction": p.get("prediction"),
+            "can_undo": can_undo, "can_redo": can_redo}
+
+
+def handle_redo(body: dict) -> dict:
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+        if not p:
+            raise ValueError("project not found")
+        fut = p.get("_future") or []
+        if not fut:
+            raise ValueError("nothing to redo")
+        p.setdefault("_history", []).append(
+            {"result_web": p.get("result_web"), "prediction": p.get("prediction")})
+        snap = fut.pop()
+        p["result_web"] = snap["result_web"]
+        p["prediction"] = snap["prediction"]
+        _save_project(p)
+        can_undo, can_redo = bool(p.get("_history")), bool(fut)
+    return {"web": _active_web(p), "prediction": p.get("prediction"),
+            "can_undo": can_undo, "can_redo": can_redo}
+
+
+def handle_compare(body: dict) -> dict:
+    """A/B-compare intervention scenarios side by side.
+
+    body: {project_id, scenarios: [{name, interventions: [...]}, ...], config?}
+    Returns one prediction per scenario (baseline web is never modified).
+    """
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    scenarios = body.get("scenarios") or []
+    if not (1 <= len(scenarios) <= 4):
+        raise ValueError("provide 1–4 scenarios to compare")
+    config = dict(p.get("build_config", {}))
+    config.update(body.get("config") or {})
+    seed = int(config.get("seed", p["seed"]))
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+    ens_runs = int(config.get("ensemble_runs", 25) or 0)
+
+    out = []
+    for i, sc in enumerate(scenarios):
+        web = copy.deepcopy(p["web"])
+        interventions = sc.get("interventions") or []
+        if interventions:
+            web = causal.apply_interventions(web, interventions,
+                                             random.Random(seed + 104729 + i * 7919),
+                                             config, lang=lang)
+        prediction = causal.predict(web, lang=lang)
+        if ens_runs > 1:
+            prediction["ensemble"] = causal.predict_ensemble(web, lang=lang, runs=ens_runs)
+        out.append({"name": str(sc.get("name") or f"Scenario {i + 1}")[:80],
+                    "prediction": prediction, "n_nodes": web["n_nodes"]})
+    return {"scenarios": out}
+
+
+def handle_sensitivity(body: dict) -> dict:
+    """Sweep one edge's weight and report how the prediction responds.
+
+    body: {project_id, source, target, weights: [0.1, ...]} (max 25 sweep points)
+    Returns [{weight, confidence, top_outcome_id, top_outcome_text}] — the UI draws
+    the response curve and sees which assumption the prediction hinges on.
+    """
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    source, target = body.get("source"), body.get("target")
+    weights = [clamp_w(float(w)) for w in (body.get("weights") or [])][:25]
+    if not weights:
+        raise ValueError("weights must be a non-empty list of 0..1 values")
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+
+    base_web = _active_web(p)
+    matched = [i for i, e in enumerate(base_web["edges"])
+               if e["source"] == source and e["target"] == target]
+    if not matched:
+        raise ValueError("edge not found")
+
+    points = []
+    for w in weights:
+        web = copy.deepcopy(base_web)
+        for i in matched:
+            web["edges"][i]["weight"] = w
+        pred = causal.predict(web, lang=lang)
+        top = (pred.get("top_outcomes") or [{}])[0]
+        points.append({"weight": round(w, 3), "confidence": pred["confidence"],
+                       "top_outcome_id": top.get("id"), "top_outcome_text": top.get("text")})
+    return {"source": source, "target": target, "points": points}
+
+
+def clamp_w(v: float) -> float:
+    return max(0.0, min(1.0, v))
+
+
 def handle_export(body: dict) -> dict:
     pid = body.get("project_id")
     with _lock:
@@ -551,12 +692,16 @@ def handle_export(body: dict) -> dict:
         raise ValueError("project not found")
     fmt = body.get("format", "json").lower()
     if fmt == "json":
-        content = json.dumps(p, ensure_ascii=False, indent=2)
+        content = json.dumps({k: v for k, v in p.items() if not k.startswith("_")},
+                             ensure_ascii=False, indent=2)
         return {"format": "json", "filename": f"{p['name']}.json", "content": content}
     if fmt == "markdown":
         content = _to_markdown(p)
         return {"format": "markdown", "filename": f"{p['name']}.md", "content": content}
-    raise ValueError("format must be json or markdown")
+    if fmt == "html":
+        content = _to_html(p)
+        return {"format": "html", "filename": f"{p['name']}.html", "content": content}
+    raise ValueError("format must be json, markdown, or html")
 
 
 def _to_markdown(p: dict) -> str:
@@ -578,6 +723,70 @@ def _to_markdown(p: dict) -> str:
     return "\n".join(lines)
 
 
+def _esc(s) -> str:
+    """Minimal HTML-escaping for user/scenario text."""
+    return (str(s if s is not None else "")
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
+def _to_html(p: dict) -> str:
+    """Self-contained, shareable static HTML report (inline CSS, no JS, no network)."""
+    pred = p.get("prediction") or {}
+    rep = p.get("report") or {}
+    web = p.get("result_web") or p["web"]
+
+    def pct(x):
+        try:
+            return f"{round(float(x) * 100)}%"
+        except (TypeError, ValueError):
+            return "–"
+
+    rows_out = "".join(
+        f"<tr><td>{_esc(o.get('text'))}</td><td class='num'>{pct(o.get('probability', o.get('mean')))}</td></tr>"
+        for o in (pred.get("top_outcomes") or []))
+    steps = "".join(
+        f"<li><span class='day'>day {t.get('day', 0)}</span>{_esc(t.get('text'))}</li>"
+        for t in (pred.get("timeline") or []))
+    ens = pred.get("ensemble") or {}
+    ens_html = ""
+    if ens:
+        conf = ens.get("confidence") or {}
+        ens_html = f"""
+  <section><h2>Confidence (Monte-Carlo, {ens.get('runs', '?')} runs)</h2>
+  <p>Mean <strong>{pct(conf.get('mean'))}</strong> · P10–P90 interval
+     <strong>{pct(conf.get('lo'))} – {pct(conf.get('hi'))}</strong> ·
+     chain stability <strong>{pct(ens.get('chain_stability'))}</strong></p></section>"""
+    findings = "".join(f"<li>{_esc(f)}</li>" for f in (rep.get("findings") or []))
+    fb = pred.get("feedback_loop")
+    fb_html = ("<p class='fb'>⚠ The web contains an active feedback loop; "
+               "probabilities include its amplification.</p>") if fb else ""
+
+    return f"""<!doctype html>
+<html lang="{_esc(p.get('lang') or 'en')}"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{_esc(p['name'])} · Wanion report</title>
+<style>
+ body{{font:16px/1.6 -apple-system,'Segoe UI',sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#1F2320;background:#F5F4F0}}
+ h1{{font-size:1.6rem;margin-bottom:.2rem}} h2{{font-size:1.1rem;margin-top:2rem;border-bottom:1px solid #DDD9D0;padding-bottom:.3rem}}
+ .meta,.day{{color:#6E746B;font-size:.85rem}} .day{{display:inline-block;min-width:4.5rem;font-weight:600}}
+ .summary{{background:#fff;border:1px solid #DDD9D0;border-radius:10px;padding:1rem 1.2rem;white-space:pre-wrap}}
+ table{{border-collapse:collapse;width:100%}} td,th{{border-bottom:1px solid #DDD9D0;padding:.45rem .6rem;text-align:left}}
+ .num{{text-align:right;font-variant-numeric:tabular-nums}} .fb{{background:#FDF3E3;border:1px solid #E8D5B0;border-radius:8px;padding:.6rem .9rem}}
+ footer{{margin-top:3rem;color:#6E746B;font-size:.8rem}}
+</style></head><body>
+<h1>◈ {_esc(p['name'])}</h1>
+<p class="meta">Generated by Wanion · {_esc(p.get('created'))} · {web.get('n_nodes', '?')} events, {web.get('n_edges', '?')} causal links</p>
+<section><h2>Scenario</h2><p>{_esc(p['web'].get('topic'))}</p></section>
+<section><h2>Prediction</h2><div class="summary">{_esc(pred.get('summary') or rep.get('summary') or '(no prediction run yet)')}</div>{fb_html}</section>
+{f"<section><h2>Most likely timeline</h2><ol>{steps}</ol></section>" if steps else ""}
+{f"<section><h2>Top outcomes</h2><table><tr><th>Outcome</th><th class='num'>Probability</th></tr>{rows_out}</table></section>" if rows_out else ""}
+{ens_html}
+{f"<section><h2>Key findings</h2><ul>{findings}</ul></section>" if findings else ""}
+<footer>Wanion · causal prediction engine — static export, no live data.</footer>
+</body></html>"""
+
+
 # ---------------------------------------------------------------- http
 _POST_ROUTES = {
     "/api/projects": "handle_create_project",
@@ -587,6 +796,10 @@ _POST_ROUTES = {
     "/api/develop": "handle_develop",
     "/api/derive": "handle_derive",
     "/api/graph": "handle_edit",
+    "/api/undo": "handle_undo",
+    "/api/redo": "handle_redo",
+    "/api/compare": "handle_compare",
+    "/api/sensitivity": "handle_sensitivity",
     "/api/export": "handle_export",
     "/api/llm-config": "handle_llm_config_save",
     "/api/llm-test": "handle_llm_test",
