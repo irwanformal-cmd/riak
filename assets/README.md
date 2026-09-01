@@ -4,10 +4,11 @@ The Riak logo — *a cause drops in, event nodes ripple outward through the web.
 
 | File | Use |
 |---|---|
-| `logo.svg` | Main logo, brand color `#136F8F` — for light backgrounds |
-| `logo-dark-bg.svg` | Accent `#58A9C7` — for dark backgrounds |
-| `logo-mono.svg` | Single-color (`currentColor`) — print, embroidery, single-ink |
+| `logo.png` / `logo.svg` | Main logo, brand color `#136F8F` — for light backgrounds |
+| `logo-dark-bg.png` / `.svg` | Accent `#58A9C7` — for dark backgrounds |
+| `logo-mono.png` / `.svg` | Single-color (black) — print, embroidery, single-ink |
 
+PNGs are 1024×1024 with transparency (alpha). SVGs are the scalable masters.
 The live app favicon is `static/favicon.svg` (same design as `logo.svg`).
 
 **Brand palette**
@@ -20,5 +21,9 @@ The live app favicon is `static/favicon.svg` (same design as `logo.svg`).
 
 **Typography**: Sora (brand/headings) · Inter (body).
 
-Logo format is plain SVG — scales to any size, no raster needed.
-To export PNG: `qlmanage -t -s 1024 -o . assets/logo.svg` (macOS) or any SVG renderer.
+SVG masters scale to any size. To re-render PNGs after changing the SVGs:
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu \
+  --screenshot=logo.png --window-size=1024,1024 --default-background-color=00000000 \
+  "file://$PWD/logo.svg"
+```
