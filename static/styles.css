@@ -98,6 +98,17 @@ h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spa
 .accent { color: var(--accent); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 
+.btn-donate {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  text-decoration: none;
+  color: #C04A5A;
+  border-color: rgba(192, 74, 90, .45);
+  background: rgba(192, 74, 90, .07);
+  transition: background .15s ease, transform .15s ease;
+}
+.btn-donate:hover { background: rgba(192, 74, 90, .16); transform: translateY(-1px); }
+
 .badge {
   font-size: 11px;
   padding: 4px 10px;
