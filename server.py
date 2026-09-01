@@ -319,7 +319,7 @@ def handle_llm_config_save(body: dict) -> dict:
     return _masked_llm_config()
 
 
-def handle_llm_test() -> dict:
+def handle_llm_test(body: dict | None = None) -> dict:
     if not llm.is_configured():
         raise ValueError("LLM not configured — set base URL and model first")
     reply = llm.test()
