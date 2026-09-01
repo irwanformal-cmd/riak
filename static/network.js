@@ -54,6 +54,7 @@ class NetworkRenderer {
     this.adj = {};          // id -> Set(neighbour ids)
     this.camera = { scale: 1, tx: 0, ty: 0 };
     this.selected = null;
+    this._path = null;      // {nodes:Set, edges:Set("s|t")} · selected node's root path
     this.hovered = null;
     this.drag = null;       // {type:'node'|'pan', node?, startX, startY, moved}
     this.onSelect = null;
@@ -113,6 +114,8 @@ class NetworkRenderer {
 
     if (this.selected && !this.byId[this.selected]) this.selected = null;
     if (this.connectSource && !this.byId[this.connectSource]) this.connectSource = null;
+    // recompute the root path for the (possibly re-id'd) selection
+    this._path = this.selected ? this._computePath(this.selected) : null;
 
     if (!hadNodes) {
       this._seedLayout();       // initial organic bloom
@@ -341,6 +344,30 @@ class NetworkRenderer {
     }
   }
 
+  // Walk a node's strongest incoming causal links back to a root, so the whole
+  // "how did we get here" chain can be highlighted through a large web.
+  _computePath(id) {
+    const nodes = new Set(), edges = new Set();
+    let cur = id;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      nodes.add(cur);
+      const parents = this._parentIds[cur] || [];
+      if (!parents.length) break;
+      let best = null, bestW = -1;
+      parents.forEach((pid) => {
+        const e = this.edges.find((x) => x.source === pid && x.target === cur);
+        const w = e ? e.weight : 0;
+        if (w > bestW) { bestW = w; best = pid; }
+      });
+      if (!best) break;
+      edges.add(best + "|" + cur);
+      cur = best;
+    }
+    return { nodes, edges };
+  }
+
   // deterministic perpendicular curve per edge (organic, never straight)
   _edgeCurve(s, t) {
     const str = s + "|" + t;
@@ -363,7 +390,9 @@ class NetworkRenderer {
 
     if (!this.nodes.length) return;
 
-    const selectedSet = this.selected ? new Set([this.selected, ...(this.adj[this.selected] || [])]) : null;
+    const selectedSet = this.selected
+      ? new Set([this.selected, ...(this.adj[this.selected] || []), ...(this._path ? this._path.nodes : [])])
+      : null;
     const topProb = this._topProbable();
 
     // visible world rect (with a margin) · cull off-screen work so very large
@@ -378,10 +407,12 @@ class NetworkRenderer {
       const a = this.byId[e.source], b = this.byId[e.target];
       if (!a || !b) return;
       if (!inView(a.x, a.y) && !inView(b.x, b.y) && !inView((a.x + b.x) / 2, (a.y + b.y) / 2)) return;
-      const highlighted = !selectedSet || (selectedSet.has(a.id) || selectedSet.has(b.id));
+      const onPath = this._path && this._path.edges.has(e.source + "|" + e.target);
+      const highlighted = !selectedSet || onPath || (selectedSet.has(a.id) || selectedSet.has(b.id));
       const inhibiting = e.relation === "prevents" || e.relation === "weakens";
-      const rgb = inhibiting ? (NET_PAL.negRGB || [180, 85, 77]) : (NET_PAL.edgeRGB || [134, 140, 130]);
-      let alpha = inhibiting ? 0.16 + e.weight * 0.30 : 0.14 + e.weight * 0.34;
+      const rgb = onPath ? (NET_PAL.accentRGB || [62, 107, 79])
+        : inhibiting ? (NET_PAL.negRGB || [180, 85, 77]) : (NET_PAL.edgeRGB || [134, 140, 130]);
+      let alpha = onPath ? 0.9 : inhibiting ? 0.16 + e.weight * 0.30 : 0.14 + e.weight * 0.34;
       if (selectedSet && !highlighted) alpha *= 0.06;
       const sx = this._sx(a.x), sy = this._sy(a.y);
       const ex = this._sx(b.x), ey = this._sy(b.y);
@@ -390,7 +421,7 @@ class NetworkRenderer {
       const len = Math.hypot(dx, dy) || 1;
       const off = this._edgeCurve(e.source, e.target) * this.camera.scale;
       ctx.strokeStyle = rgba(rgb, alpha);
-      ctx.lineWidth = 1 + e.weight * 1.6;
+      ctx.lineWidth = onPath ? 2.4 : 1 + e.weight * 1.6;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.quadraticCurveTo(mx + (-dy / len) * off, my + (dx / len) * off, ex, ey);
@@ -436,7 +467,8 @@ class NetworkRenderer {
       }
       // labels
       const showLabel = topProb.has(n.id) || n.type === "root" || n.type === "intervention" ||
-        this.hovered === n.id || this.selected === n.id || this.camera.scale > 1.5;
+        this.hovered === n.id || this.selected === n.id || this.camera.scale > 1.5 ||
+        (this._path && this._path.nodes.has(n.id));
       if (showLabel && !dim) {
         ctx.fillStyle = NET_PAL.label || "#1F2320";
         ctx.font = "10px Inter, system-ui, sans-serif";
@@ -628,11 +660,13 @@ class NetworkRenderer {
         }
       } else {
         this.selected = this.drag.node.id;
+        this._path = this._computePath(this.selected);
         if (this.onSelect) this.onSelect(this.drag.node.id);
       }
     } else if (this.drag && this.drag.type === "pan" && !this.drag.moved) {
       if (!this.connectMode) {
         this.selected = null;
+        this._path = null;
         if (this.onSelect) this.onSelect(null);
       }
     }
@@ -660,7 +694,11 @@ class NetworkRenderer {
   }
 
   getSelected() { return this.selected; }
-  select(id) { this.selected = id || null; this.render(); }
+  select(id) {
+    this.selected = id || null;
+    this._path = this.selected ? this._computePath(this.selected) : null;
+    this.render();
+  }
   render() { this._draw(); }
   zoom(factor) { this.camera.scale = Math.max(0.12, Math.min(6, this.camera.scale * factor)); }
 

@@ -450,6 +450,36 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
   .interact-layout { grid-template-columns: 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
+
+  /* content breathes on small screens */
+  .content { padding: 12px; }
+  .sidebar .panel { margin-bottom: 10px; }
+
+  /* the build-form row wraps instead of overflowing */
+  .row { flex-wrap: wrap; }
+  .row input { min-width: 110px; flex: 1; }
+
+  /* canvas stays usable, not 560px of scroll */
+  #network-canvas { height: 52vh; min-height: 320px; }
+  .vizbar { flex-wrap: wrap; gap: 8px; }
+  .legend { flex-wrap: wrap; gap: 8px; }
+
+  /* chat + agent pane stack; chat log doesn't eat the viewport */
+  .chat-log { min-height: 200px; max-height: 40vh; }
+  .agent-list { max-height: 30vh; }
+
+  /* tabs scroll horizontally instead of squashing */
+  .tabs { overflow-x: auto; white-space: nowrap; }
+
+  /* math derivation controls wrap */
+  .math-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .math-controls { flex-wrap: wrap; }
+
+  /* export buttons wrap */
+  .export-row { flex-wrap: wrap; }
+
+  /* trajectory dock doesn't cover the whole screen */
+  .trajectory { max-width: 100vw; }
 }
 
 /* ---- modal ---- */

@@ -12,6 +12,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -190,6 +191,117 @@ class TestAPI(unittest.TestCase):
         self.assertTrue(os.path.isfile(path), "project must be saved under the temp DATA_DIR")
         self.assertTrue(path.startswith(self._tmp.name),
                         "test must never write into the real data/ dir")
+
+    # ------------------------------------------------ new feature endpoints
+    def test_simulate_includes_ensemble_and_timeline(self):
+        p = self._create_project()
+        status, body = self._post("/api/simulate", {"project_id": p["id"]})
+        self.assertEqual(status, 200, body)
+        pred = body["prediction"]
+        self.assertIn("timeline", pred)
+        self.assertIn("feedback_loop", pred)
+        ens = pred.get("ensemble")
+        self.assertIsInstance(ens, dict, "simulate runs a Monte-Carlo ensemble by default")
+        self.assertGreater(ens["runs"], 1)
+        conf = ens["confidence"]
+        self.assertLessEqual(conf["lo"], conf["mean"])
+        self.assertLessEqual(conf["mean"], conf["hi"])
+        self.assertGreaterEqual(ens["chain_stability"], 0.0)
+        self.assertLessEqual(ens["chain_stability"], 1.0)
+
+    def test_compare_scenarios(self):
+        p = self._create_project()
+        status, body = self._post("/api/compare", {
+            "project_id": p["id"],
+            "scenarios": [
+                {"name": "no action", "interventions": []},
+                {"name": "subsidy", "interventions": [{"text": "the government adds a subsidy"}]},
+            ],
+        })
+        self.assertEqual(status, 200, body)
+        self.assertEqual(len(body["scenarios"]), 2)
+        for sc in body["scenarios"]:
+            self.assertIn("prediction", sc)
+            self.assertIn("confidence", sc["prediction"])
+        status, body = self._post("/api/compare", {"project_id": p["id"], "scenarios": []})
+        self.assertEqual(status, 400)
+
+    def test_sensitivity_sweep(self):
+        p = self._create_project()
+        edge = p["web"]["edges"][0]
+        status, body = self._post("/api/sensitivity", {
+            "project_id": p["id"], "source": edge["source"], "target": edge["target"],
+            "weights": [0.2, 0.5, 0.9],
+        })
+        self.assertEqual(status, 200, body)
+        self.assertEqual(len(body["points"]), 3)
+        self.assertEqual([pt["weight"] for pt in body["points"]], [0.2, 0.5, 0.9])
+        status, body = self._post("/api/sensitivity", {
+            "project_id": p["id"], "source": "nope", "target": "nada", "weights": [0.5]})
+        self.assertEqual(status, 400)
+
+    def test_undo_redo_cycle(self):
+        p = self._create_project()
+        # nothing to undo yet
+        status, body = self._post("/api/undo", {"project_id": p["id"]})
+        self.assertEqual(status, 400)
+        # make an edit, then undo it, then redo it
+        status, body = self._post("/api/graph", {
+            "project_id": p["id"],
+            "mutations": [{"op": "add_root", "text": "a brand new intervention root"}],
+        })
+        self.assertEqual(status, 200, body)
+        status, body = self._post("/api/undo", {"project_id": p["id"]})
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["can_redo"])
+        status, body = self._post("/api/redo", {"project_id": p["id"]})
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["can_undo"])
+        self.assertFalse(body["can_redo"])
+
+    def test_export_html(self):
+        p = self._create_project()
+        self._post("/api/simulate", {"project_id": p["id"]})
+        status, body = self._post("/api/export", {"project_id": p["id"], "format": "html"})
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["format"], "html")
+        self.assertTrue(body["filename"].endswith(".html"))
+        self.assertIn("<!doctype html>", body["content"].lower())
+        self.assertIn("Wanion", body["content"])
+
+    def test_async_job_pattern(self):
+        status, body = self._post("/api/projects", {
+            "name": "async test", "seed_text": "Fuel prices rise sharply in the city.",
+            "seed": 9, "config": {"branching": 2, "depth": 1, "max_nodes": 20},
+            "async": True,
+        })
+        self.assertEqual(status, 202, body)
+        self.assertIn("job_id", body)
+        job_id = body["job_id"]
+        result = None
+        for _ in range(50):  # poll up to ~5s
+            status, job = self._get("/api/jobs/%s" % job_id)
+            self.assertEqual(status, 200)
+            if job["status"] != "running":
+                result = job
+                break
+            time.sleep(0.1)
+        self.assertIsNotNone(result, "async job never finished")
+        self.assertEqual(result["status"], "done", result.get("error"))
+        self.assertIn("web", result["result"])
+        status, body = self._get("/api/jobs/does-not-exist")
+        self.assertEqual(status, 404)
+
+    def test_body_size_limit_413(self):
+        # the server rejects >2MB payloads without reading them; urllib may either
+        # receive the clean 413 or hit a broken pipe while still uploading — both
+        # prove the rejection works.
+        try:
+            status, body = self._post("/api/simulate", {"project_id": "x" * (3 * 1024 * 1024)})
+        except urllib.error.URLError:
+            return  # connection cut mid-upload: the server refused the payload
+        self.assertEqual(status, 413)
+        self.assertIn("error", body)
 
 
 if __name__ == "__main__":
