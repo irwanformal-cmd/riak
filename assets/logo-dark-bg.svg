@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Riak logo · variant for DARK backgrounds (#58A9C7, the dark-theme accent) -->
+  <circle cx="50" cy="50" r="20" stroke="#58A9C7" stroke-width="5" opacity=".85"
+          stroke-linecap="round" stroke-dasharray="102 24" transform="rotate(-30 50 50)"/>
+  <circle cx="50" cy="50" r="32" stroke="#58A9C7" stroke-width="4.4" opacity=".55"
+          stroke-linecap="round" stroke-dasharray="166 35" transform="rotate(70 50 50)"/>
+  <circle cx="50" cy="50" r="43" stroke="#58A9C7" stroke-width="3.6" opacity=".3"
+          stroke-linecap="round" stroke-dasharray="228 43" transform="rotate(165 50 50)"/>
+  <circle cx="50" cy="50" r="8.5" fill="#58A9C7"/>
+  <circle cx="68.8" cy="43.2" r="4.6" fill="#58A9C7"/>
+  <circle cx="29.4" cy="25.5" r="4" fill="#58A9C7" opacity=".85"/>
+  <circle cx="39.1" cy="80.1" r="3.6" fill="#58A9C7" opacity=".7"/>
+  <circle cx="57.5" cy="7.7" r="3" fill="#58A9C7" opacity=".5"/>
+</svg>
