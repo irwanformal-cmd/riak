@@ -590,7 +590,7 @@ async function runComparison() {
   setStatus("compare-status", t("comparing"), "loading");
   $("#compare-run").disabled = true;
   try {
-    const out = await api("/api/compare", { project_id: state.currentProject.id, lang: LANG, scenarios });
+    const out = await apiAsync("/api/compare", { project_id: state.currentProject.id, lang: LANG, scenarios });
     renderCompareResults(out.scenarios || []);
     setStatus("compare-status", t("compareDone"), "ok");
   } catch (e) { setStatus("compare-status", e.message, "err"); }

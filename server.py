@@ -804,7 +804,7 @@ _POST_ROUTES = {
 }
 
 # endpoints allowed to run in the background via {"async": true}
-_ASYNC_ENDPOINTS = {"/api/projects", "/api/simulate", "/api/develop"}
+_ASYNC_ENDPOINTS = {"/api/projects", "/api/simulate", "/api/develop", "/api/compare"}
 
 
 def _dispatch_post(path: str, body: dict) -> dict:

@@ -33,7 +33,9 @@ _last_error: str = ""
 _CACHE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "data", "llm_cache.json")
 _CACHE_MAX = 500
-_cache_lock = threading.Lock()
+# RLock, not Lock: chat() holds the lock while calling _cache_load(), which takes
+# it again — a plain Lock self-deadlocks the whole server on the first LLM call.
+_cache_lock = threading.RLock()
 _cache: dict | None = None        # lazy-loaded {key: content}
 _cache_stats = {"hits": 0, "misses": 0}
 

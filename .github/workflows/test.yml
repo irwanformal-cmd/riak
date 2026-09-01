@@ -32,3 +32,6 @@ jobs:
 
       - name: Run HTTP API integration tests
         run: python3 test_api.py
+
+      - name: Run LLM cache regression tests
+        run: python3 test_llm_cache.py
