@@ -40,6 +40,9 @@ const I18N = {
     timelineTitle: "Most likely timeline", dayN: "day {n}",
     ensembleLine: "Confidence {mean}% · range {lo}%–{hi}% ({runs} runs) · chain stability {stab}%",
     feedbackLoopWarn: "⚠ Feedback loop detected — effects may reinforce each other",
+    interventionPh: "What new event happens?", removeTitle: "Remove",
+    searchPh: "Search events…", sensTitle: "Sensitivity sweep · how the prediction responds to this link",
+    sensRunning: "sweeping…",
   },
   id: {
     tagline: "Mesin prediksi sebab-akibat · “kalau ini, terus apa?”",
@@ -79,6 +82,9 @@ const I18N = {
     timelineTitle: "Linimasa paling mungkin", dayN: "hari {n}",
     ensembleLine: "Keyakinan {mean}% · rentang {lo}%–{hi}% ({runs} run) · stabilitas jalur {stab}%",
     feedbackLoopWarn: "⚠ Umpan balik terdeteksi — efek bisa saling memperkuat",
+    interventionPh: "Kejadian baru apa yang terjadi?", removeTitle: "Hapus",
+    searchPh: "Cari peristiwa…", sensTitle: "Sweep sensitivitas · respons prediksi terhadap kaitan ini",
+    sensRunning: "menyapu…",
   },
   zh: {
     tagline: "因果预测引擎 · “如果这样，会怎样？”",
@@ -116,6 +122,9 @@ const I18N = {
     timelineTitle: "最可能时间线", dayN: "第 {n} 天",
     ensembleLine: "置信度 {mean}% · 区间 {lo}%–{hi}%（{runs} 次运行）· 链稳定性 {stab}%",
     feedbackLoopWarn: "⚠ 检测到反馈回路——效应可能相互强化",
+    interventionPh: "会发生什么新事件？", removeTitle: "删除",
+    searchPh: "搜索事件…", sensTitle: "敏感性扫描 · 预测对该关联的响应",
+    sensRunning: "扫描中…",
   },
 };
 
@@ -124,6 +133,7 @@ function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key;
 function applyI18n() {
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.getAttribute("data-i18n")); });
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.getAttribute("data-i18n-ph")); });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = t(el.getAttribute("data-i18n-title")); });
   syncNetworkLabels();
 }
 
@@ -226,6 +236,18 @@ async function api(path, body) {
   return data;
 }
 
+/* ---- async jobs: POST with async:true, then poll /api/jobs/<id> ---- */
+async function apiAsync(path, body) {
+  const start = await api(path, Object.assign({}, body, { async: true }));
+  if (!start || !start.job_id) return start; // server ignored async: sync response
+  for (;;) {
+    await new Promise((res) => setTimeout(res, 1000));
+    const st = await api("/api/jobs/" + encodeURIComponent(start.job_id));
+    if (st.status === "done") return st.result;
+    if (st.status === "error") throw new Error(st.error || "job failed");
+  }
+}
+
 function download(filename, text) {
   const blob = new Blob([text], { type: "application/octet-stream" });
   const url = URL.createObjectURL(blob);
@@ -240,6 +262,8 @@ const state = {
   currentProject: null,
   web: null, prediction: null, report: null,
   interventions: [],
+  compare: { scenarios: [] },
+  nodeQuery: "",
   selectedNodeId: null,
   trajTimer: null, trajJob: null, trajSeen: 0,
 };
@@ -425,6 +449,7 @@ async function loadProject(id) {
     $("#cfg-maxnodes").value = (p.build_config && p.build_config.max_nodes) || 2000;
     showSetup(p);
     renderProjects();
+    updateUndoRedoButtons(true, true);
     if (state.prediction) showResults({ web: state.web, prediction: state.prediction });
     else $("#results").classList.add("hidden");
     toast(p.name);
@@ -452,11 +477,13 @@ async function buildWorld() {
         max_nodes: parseInt($("#cfg-maxnodes").value) || 2000,
       },
     };
-    const p = await api("/api/projects", payload);
+    const p = await apiAsync("/api/projects", payload);
     state.currentProject = p;
     state.web = p.web; state.prediction = null; state.report = null;
     state.interventions = [];
     $("#results").classList.add("hidden");
+    const cr = $("#compare-results"); if (cr) { cr.classList.add("hidden"); cr.innerHTML = ""; }
+    updateUndoRedoButtons(true, true);
     await refreshProjects();
     showSetup(p);
     setStatus("build-status", t("built"), "ok");
@@ -500,6 +527,113 @@ function addIntervention() {
   renderInterventions();
 }
 
+/* ------------------------------------------------------------------ A/B compare */
+function toggleComparePanel() {
+  const panel = $("#compare-panel");
+  const willOpen = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden");
+  if (willOpen && !state.compare.scenarios.length) {
+    state.compare.scenarios = [{ name: "", interventions: [{ text: "" }] },
+                               { name: "", interventions: [{ text: "" }] }];
+    renderCompareSlots();
+  }
+}
+
+function renderCompareSlots() {
+  const box = $("#compare-slots");
+  box.innerHTML = "";
+  state.compare.scenarios.forEach((sc, i) => {
+    const slot = document.createElement("div");
+    slot.style.cssText = "border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0";
+    slot.innerHTML =
+      `<div class="row" style="align-items:center">
+         <input type="text" class="sc-name" value="${escapeHtml(sc.name)}" placeholder="${escapeHtml(t("scenarioDefault").replace("{n}", i + 1))}">
+         <button class="rm sc-rm" title="${escapeHtml(t("delete"))}">✕</button>
+       </div>
+       <div class="interventions sc-list"></div>
+       <button class="btn btn-ghost btn-block sc-add">${t("addIntervention")}</button>`;
+    slot.querySelector(".sc-name").addEventListener("change", (e) => { sc.name = e.target.value; });
+    slot.querySelector(".sc-rm").onclick = () => {
+      state.compare.scenarios.splice(i, 1);
+      renderCompareSlots();
+    };
+    slot.querySelector(".sc-add").onclick = () => {
+      sc.interventions.push({ text: "" });
+      renderCompareSlots();
+    };
+    const list = slot.querySelector(".sc-list");
+    sc.interventions.forEach((inv, j) => {
+      const row = document.createElement("div");
+      row.className = "intervention";
+      row.innerHTML =
+        `<input type="text" value="${escapeHtml(inv.text)}" placeholder="${escapeHtml(t("interventionPh"))}">
+         <button class="rm" title="${escapeHtml(t("removeTitle"))}">✕</button>`;
+      row.querySelector("input").addEventListener("change", (e) => { inv.text = e.target.value; });
+      row.querySelector(".rm").onclick = () => { sc.interventions.splice(j, 1); renderCompareSlots(); };
+      list.appendChild(row);
+    });
+    box.appendChild(slot);
+  });
+  const addBtn = $("#compare-add");
+  if (addBtn) addBtn.disabled = state.compare.scenarios.length >= 4;
+}
+
+async function runComparison() {
+  if (!state.currentProject) { toast(t("noProject"), true); return; }
+  const scenarios = state.compare.scenarios.map((sc, i) => ({
+    name: (sc.name || "").trim() || t("scenarioDefault").replace("{n}", i + 1),
+    interventions: (sc.interventions || [])
+      .filter((x) => (x.text || "").trim())
+      .map((x) => ({ text: x.text.trim() })),
+  }));
+  if (!scenarios.length) return;
+  setStatus("compare-status", t("comparing"), "loading");
+  $("#compare-run").disabled = true;
+  try {
+    const out = await api("/api/compare", { project_id: state.currentProject.id, lang: LANG, scenarios });
+    renderCompareResults(out.scenarios || []);
+    setStatus("compare-status", t("compareDone"), "ok");
+  } catch (e) { setStatus("compare-status", e.message, "err"); }
+  finally { $("#compare-run").disabled = false; }
+}
+
+function renderCompareResults(list) {
+  const box = $("#compare-results");
+  if (!box) return;
+  box.classList.remove("hidden");
+  let html = `<h3>${t("compareResults")}</h3>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">`;
+  list.forEach((sc) => {
+    const pred = sc.prediction || {};
+    const conf = Math.round((pred.confidence || 0) * 100);
+    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px">`;
+    html += `<b>${escapeHtml(sc.name || "")}</b>`;
+    html += `<div class="hint" style="margin:6px 0">${conf}% ${t("confidence")}</div>`;
+    const ens = pred.ensemble;
+    if (ens && ens.confidence && typeof ens.confidence.mean === "number") {
+      const line = t("ensembleLine")
+        .replace("{mean}", Math.round(ens.confidence.mean * 100))
+        .replace("{lo}", Math.round((ens.confidence.lo || 0) * 100))
+        .replace("{hi}", Math.round((ens.confidence.hi || 0) * 100))
+        .replace("{runs}", ens.runs || 0)
+        .replace("{stab}", Math.round((ens.chain_stability || 0) * 100));
+      html += `<div class="hint">${escapeHtml(line)}</div>`;
+    }
+    const top = Array.isArray(pred.top_outcomes) ? pred.top_outcomes.slice(0, 3) : [];
+    if (top.length) {
+      html += `<div style="margin-top:8px">`;
+      top.forEach((o) => {
+        const pct = Math.round((o.probability || 0) * 100);
+        html += `<div class="bar-row" style="grid-template-columns:1fr 40px"><span>${escapeHtml(shorten(o.text, 40))}</span><span>${pct}%</span></div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+  });
+  html += `</div>`;
+  box.innerHTML = html;
+}
+
 /* ------------------------------------------------------------------ run */
 async function runSimulation() {
   if (!state.currentProject) { toast(t("noProject"), true); return; }
@@ -512,7 +646,7 @@ async function runSimulation() {
       seed: state.currentProject.seed,
       interventions: state.interventions.filter((i) => (i.text || "").trim()),
     };
-    const out = await api("/api/simulate", { project_id: state.currentProject.id, lang: LANG, config, job });
+    const out = await apiAsync("/api/simulate", { project_id: state.currentProject.id, lang: LANG, config, job });
     state.web = out.web;
     state.prediction = out.prediction;
     state.report = null;
@@ -695,6 +829,33 @@ function renderReport(r) {
     html += `</div></div>`;
   }
 
+  /* ---- prediction extras (absent on older projects) ---- */
+  const pred = state.prediction || {};
+  const ens = pred.ensemble;
+  if (ens && ens.confidence && typeof ens.confidence.mean === "number") {
+    const line = t("ensembleLine")
+      .replace("{mean}", Math.round(ens.confidence.mean * 100))
+      .replace("{lo}", Math.round((ens.confidence.lo || 0) * 100))
+      .replace("{hi}", Math.round((ens.confidence.hi || 0) * 100))
+      .replace("{runs}", ens.runs || 0)
+      .replace("{stab}", Math.round((ens.chain_stability || 0) * 100));
+    html += `<p class="hint">${escapeHtml(line)}</p>`;
+  }
+
+  if (pred.feedback_loop) {
+    html += `<div class="r-section"><span class="badge badge-off">${escapeHtml(t("feedbackLoopWarn"))}</span></div>`;
+  }
+
+  const timeline = Array.isArray(pred.timeline) ? pred.timeline : [];
+  if (timeline.length) {
+    html += `<div class="r-section"><h3>${t("timelineTitle")}</h3><ol style="max-width:560px;margin:0;padding-left:20px">`;
+    timeline.forEach((s) => {
+      const day = s && typeof s.day === "number" ? s.day : "–";
+      html += `<li style="margin-bottom:6px"><span class="badge">${escapeHtml(t("dayN").replace("{n}", day))}</span> ${escapeHtml((s && s.text) || "")}</li>`;
+    });
+    html += `</ol></div>`;
+  }
+
   html += `<div class="r-section"><h3>${t("web")}</h3>
     <p>${r.n_nodes} events · ${r.n_edges} causal links</p></div>`;
 
@@ -719,7 +880,10 @@ function getNode(nodeId) { return ((state.web && state.web.nodes) || []).find((n
 function renderNodeList(web) {
   const ul = $("#node-list");
   ul.innerHTML = "";
-  const nodes = [...(web.nodes || [])].sort((a, b) => a.level - b.level || (b.probability || 0) - (a.probability || 0));
+  const q = (state.nodeQuery || "").trim().toLowerCase();
+  const nodes = [...(web.nodes || [])]
+    .filter((n) => !q || (n.text || "").toLowerCase().includes(q))
+    .sort((a, b) => a.level - b.level || (b.probability || 0) - (a.probability || 0));
   nodes.forEach((n) => {
     const li = document.createElement("li");
     li.className = n.id === state.selectedNodeId ? "active" : "";
@@ -764,12 +928,72 @@ function renderConnections(node) {
     const out = e.source === node.id;
     const other = byId[out ? e.target : e.source];
     if (!other) return;
-    html += `<div class="conn"><span class="conn-dir">${out ? "→" : "←"}</span><span class="conn-text">${escapeHtml(shorten(other.text, 36))} <i>· ${relVerb(e.relation)}</i></span><button class="conn-x" data-s="${e.source}" data-t="${e.target}">✕</button></div>`;
+    html += `<div class="conn"><span class="conn-dir">${out ? "→" : "←"}</span><span class="conn-text">${escapeHtml(shorten(other.text, 36))} <i>· ${relVerb(e.relation)}</i></span><button class="conn-sens" data-s="${e.source}" data-t="${e.target}" title="${escapeHtml(t("sensTitle"))}">∂</button><button class="conn-x" data-s="${e.source}" data-t="${e.target}">✕</button></div>`;
   });
   box.innerHTML = html;
   box.querySelectorAll(".conn-x").forEach((b) => {
     b.onclick = () => disconnectEdge(b.dataset.s, b.dataset.t);
   });
+  box.querySelectorAll(".conn-sens").forEach((b) => {
+    b.onclick = () => runSensitivity(b.dataset.s, b.dataset.t, b);
+  });
+}
+
+/* ---------------------------------------------------- edge sensitivity sweep */
+async function runSensitivity(source, target, btn) {
+  if (!state.currentProject) return;
+  // toggle an existing result instead of re-sweeping
+  const existing = btn.parentElement.nextElementSibling;
+  if (existing && existing.classList && existing.classList.contains("conn-sens-result")) {
+    existing.remove();
+    return;
+  }
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "…";
+  try {
+    const weights = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+    const out = await api("/api/sensitivity", {
+      project_id: state.currentProject.id, source, target, weights, lang: LANG,
+    });
+    const pts = out.points || [];
+    const row = document.createElement("div");
+    row.className = "conn-sens-result";
+    if (!pts.length) {
+      row.textContent = "–";
+    } else {
+      const lo = Math.min(...pts.map((p) => p.confidence));
+      const hi = Math.max(...pts.map((p) => p.confidence));
+      row.innerHTML = `<canvas width="150" height="34"></canvas><span class="sens-range">${Math.round(lo * 100)}% → ${Math.round(hi * 100)}%</span>`;
+      drawSensSpark(row.querySelector("canvas"), pts);
+    }
+    btn.parentElement.after(row);
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function drawSensSpark(canvas, pts) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const pal = window.PALETTE || {};
+  ctx.clearRect(0, 0, W, H);
+  const xs = pts.map((p) => p.weight);
+  const ys = pts.map((p) => p.confidence);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const px = (w) => 4 + ((w - x0) / Math.max(x1 - x0, 1e-9)) * (W - 8);
+  const py = (c) => H - 4 - ((c - y0) / Math.max(y1 - y0, 1e-9)) * (H - 8);
+  ctx.strokeStyle = pal.accent || "#3E6B4F";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  pts.forEach((p, i) => { i ? ctx.lineTo(px(p.weight), py(p.confidence)) : ctx.moveTo(px(p.weight), py(p.confidence)); });
+  ctx.stroke();
+  ctx.fillStyle = pal.accent || "#3E6B4F";
+  pts.forEach((p) => { ctx.beginPath(); ctx.arc(px(p.weight), py(p.confidence), 1.8, 0, Math.PI * 2); ctx.fill(); });
 }
 
 async function openNodeChat(nodeId, loadExplain) {
@@ -997,7 +1221,7 @@ async function sendNodeMessage() {
   log.insertAdjacentHTML("beforeend", `<div class="msg agent loading"><div class="who">${t("aiDev")}</div>${t("thinking")}</div>`);
   log.scrollTop = log.scrollHeight;
   try {
-    const out = await api("/api/develop", { project_id: state.currentProject.id, node_id: nodeId, message, lang: LANG });
+    const out = await apiAsync("/api/develop", { project_id: state.currentProject.id, node_id: nodeId, message, lang: LANG });
     const loading = log.querySelector(".msg.loading");
     if (loading) loading.remove();
     log.insertAdjacentHTML("beforeend", `<div class="msg agent"><div class="who">${t("aiDev")}</div>${escapeHtml(out.reply || "")}</div>`);
@@ -1013,7 +1237,7 @@ async function sendNodeMessage() {
   }
 }
 
-function applyGraphUpdate(web, prediction) {
+function applyGraphUpdate(web, prediction, undoState) {
   state.web = web;
   state.prediction = prediction || null;
   state.report = null;
@@ -1021,6 +1245,33 @@ function applyGraphUpdate(web, prediction) {
   network.render();
   renderNodeList(web);
   refreshProjects();
+  // a fresh edit makes undo available and clears the redo stack server-side
+  if (undoState) updateUndoRedoButtons(undoState.can_undo, undoState.can_redo);
+  else updateUndoRedoButtons(true, false);
+}
+
+/* ------------------------------------------------------------------ undo/redo */
+function updateUndoRedoButtons(canUndo, canRedo) {
+  const u = $("#undo-btn"), r = $("#redo-btn");
+  if (u && canUndo != null) u.disabled = !canUndo;
+  if (r && canRedo != null) r.disabled = !canRedo;
+}
+
+async function undoRedo(which) {
+  if (!state.currentProject) { toast(t("noProject"), true); return; }
+  const btn = which === "undo" ? $("#undo-btn") : $("#redo-btn");
+  try {
+    const out = await api("/api/" + which, { project_id: state.currentProject.id });
+    applyGraphUpdate(out.web, out.prediction, { can_undo: out.can_undo, can_redo: out.can_redo });
+    if (state.selectedNodeId && !getNode(state.selectedNodeId)) {
+      state.selectedNodeId = null;
+      $("#chat-profile").innerHTML = "";
+      renderNodeActions(null);
+      renderConnections(null);
+    }
+  } catch (e) {
+    if (btn) btn.disabled = true; // 400: nothing to undo/redo
+  }
 }
 
 function startConnect(nodeId) {
@@ -1108,14 +1359,25 @@ function bindEvents() {
     $("#seed-text").value = "";
     $("#seed-text").focus();
     state.currentProject = null; state.web = null; state.prediction = null; state.report = null;
+    const cr = $("#compare-results"); if (cr) { cr.classList.add("hidden"); cr.innerHTML = ""; }
+    updateUndoRedoButtons(true, true);
     renderProjects();
   };
   $("#add-intervention").onclick = addIntervention;
+  $("#compare-toggle").onclick = toggleComparePanel;
+  $("#compare-add").onclick = () => {
+    if (state.compare.scenarios.length < 4) {
+      state.compare.scenarios.push({ name: "", interventions: [{ text: "" }] });
+      renderCompareSlots();
+    }
+  };
+  $("#compare-run").onclick = runComparison;
 
   $$("#tabs .tab").forEach((b) => { b.onclick = () => switchTab(b.dataset.tab); });
 
   $("#export-json").onclick = () => exportData("json");
   $("#export-md").onclick = () => exportData("markdown");
+  $("#export-html").onclick = () => exportData("html");
   $("#export-png").onclick = () => network.downloadPNG();
 
   network.onOpen = (id) => {
@@ -1133,6 +1395,8 @@ function bindEvents() {
     await connectNodes(source, target);
   };
 
+  $("#undo-btn").onclick = () => undoRedo("undo");
+  $("#redo-btn").onclick = () => undoRedo("redo");
   $("#zoom-in").onclick = () => network.zoom(1.15);
   $("#zoom-out").onclick = () => network.zoom(0.87);
   $("#fit-view").onclick = () => network.fitView();
@@ -1146,6 +1410,12 @@ function bindEvents() {
   // node chat
   $("#chat-send").onclick = sendNodeMessage;
   $("#chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendNodeMessage(); });
+  // live event search
+  const ns = $("#node-search");
+  if (ns) ns.addEventListener("input", () => {
+    state.nodeQuery = ns.value;
+    if (state.web) renderNodeList(state.web);
+  });
 
   // LLM settings
   $("#settings-btn").onclick = openSettings;
