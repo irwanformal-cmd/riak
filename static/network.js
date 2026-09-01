@@ -49,7 +49,7 @@ const STEPS_PER_FRAME = 2;
  * render-only: physics, hit-testing and interaction are untouched. */
 const CINE = {
   breathe: 0.06,      // node radius oscillation (±4.5% — a heartbeat, not a bounce)
-  glowDark: 0.22,      // halo alpha behind key nodes (dark mode)
+  glowDark: 0.30,      // halo alpha behind key nodes (dark mode)
   glowLight: 0.055,    // halo alpha (light mode — paper barely glows)
   depthSize: 0.14,     // how much pseudo-depth scales node size (±14%)
   depthAlpha: 0.22,    // how much far nodes fade
@@ -458,10 +458,12 @@ class NetworkRenderer {
 
     if (!this.nodes.length) return;
 
+    const dark = _palIsDark();
     // ambient dust (dark sonar waters only) — slow drift, zero interactivity
-    if (_palIsDark()) {
+    if (dark) {
       const acc = NET_PAL.accentRGB || [103, 232, 249];
       ctx.save();
+      ctx.globalCompositeOperation = "lighter";   // additive — particles EMIT light
       this._dust.forEach((d) => {
         const dy = (d.y * h + this._t * 3 + d.ph * 10) % h;   // slow rise + wrap
         const tw = 0.5 + 0.5 * Math.sin(this._t * 0.7 + d.ph); // gentle twinkle
@@ -498,6 +500,7 @@ class NetworkRenderer {
         : inhibiting ? (NET_PAL.negRGB || [180, 85, 77]) : (NET_PAL.edgeRGB || [134, 140, 130]);
       let alpha = onPath ? 0.9 : inhibiting ? 0.16 + e.weight * 0.30 : 0.14 + e.weight * 0.34;
       if (selectedSet && !highlighted) alpha *= 0.06;
+      if (dark) alpha = Math.min(1, alpha * 1.9);   // dark mode: edges carry light
       const sx = this._sx(a.x), sy = this._sy(a.y);
       const ex = this._sx(b.x), ey = this._sy(b.y);
       const mx = (sx + ex) / 2, my = (sy + ey) / 2;
@@ -520,6 +523,7 @@ class NetworkRenderer {
         : [...this.edges].sort((a, b) => b.weight - a.weight).slice(0, CINE.pulses);
       const acc = NET_PAL.accentRGB || [31, 59, 179];
       ctx.save();
+      if (dark) ctx.globalCompositeOperation = "lighter";   // pulses emit light
       pool.slice(0, CINE.pulses).forEach((e) => {
         const a = this.byId[e.source], b = this.byId[e.target];
         if (!a || !b) return;
@@ -537,14 +541,13 @@ class NetworkRenderer {
         ctx.globalAlpha = 0.8 * fade;
         ctx.fillStyle = rgba(acc, 1);
         ctx.beginPath();
-        ctx.arc(px, py, 2.3, 0, Math.PI * 2);
+        ctx.arc(px, py, dark ? 3.0 : 2.3, 0, Math.PI * 2);
         ctx.fill();
       });
       ctx.restore();
     }
 
     // nodes
-    const dark = _palIsDark();
     const glowA = dark ? CINE.glowDark : CINE.glowLight;
     this.nodes.forEach((n) => {
       if (!inView(n.x, n.y)) return;
@@ -557,17 +560,22 @@ class NetworkRenderer {
       const breathe = 1 + CINE.breathe * Math.sin(this._t * 1.05 + (n._phase || 0));
       const r = this._radius(n, this.camera.scale) * depthS * breathe;
       const col = this._color(n);
-      // halo behind key nodes — the MiroFish glow, render-cheap (no shadowBlur)
+      // halo: in dark mode EVERY node emits light (additive), key nodes brighter;
+      // in light mode only key nodes get a faint halo
       const key = n.type === "root" || n.type === "intervention" || topProb.has(n.id) ||
                   this.selected === n.id || this.hovered === n.id;
-      if (key && !dim) {
+      if ((dark || key) && !dim) {
+        const strength = key ? glowA * 1.6 : glowA * 0.55;
+        ctx.save();
+        if (dark) ctx.globalCompositeOperation = "lighter";   // inverse: nodes are light sources
         const grad = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 3.9);
-        grad.addColorStop(0, rgba(this._rgbOf(col), glowA * 1.6));
+        grad.addColorStop(0, rgba(this._rgbOf(col), strength));
         grad.addColorStop(1, rgba(this._rgbOf(col), 0));
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(x, y, r * 3.9, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       }
       ctx.globalAlpha = (dim ? 0.12 : (this.selected === n.id ? 1 : 0.92)) * depthF;
       this._traceNode(ctx, x, y, r, n, topProb);
