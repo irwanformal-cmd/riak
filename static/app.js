@@ -48,6 +48,7 @@ const I18N = {
     interventionPh: "What new event happens?", removeTitle: "Remove",
     searchPh: "Search events…", sensTitle: "Sensitivity sweep · how the prediction responds to this link",
     sensRunning: "sweeping…",
+    expandTitle: "Expand network (hide sidebar)",
   },
   id: {
     tagline: "Mesin prediksi sebab-akibat · “kalau ini, terus apa?”",
