@@ -943,6 +943,16 @@ def build_web(seed_text: str, seed: int, config: dict | None = None, lang: str =
     roots = extract_root_events(seed_text, rng, lang=lang)
     frontier: list[tuple[str, int]] = [(add_node(r, "root", 0, _polarity(r)), 0) for r in roots]
     trajectory.push("phase", f"extract {len(roots)} starting event(s)")
+    # connect sequential roots so a split scenario flows as ONE causal chain
+    # instead of N disconnected trees — BFS still expands each root independently.
+    for i in range(len(frontier) - 1):
+        src = frontier[i][0]
+        tgt = frontier[i + 1][0]
+        edges.append({"source": src, "target": tgt, "relation": "and-then",
+                      "weight": 0.5, "mechanism": None, "state_changes": None,
+                      "formula": None, "uncertainty": None, "operator": None,
+                      "delay_days": 0})
+        parent[tgt] = src
     _emit_progress()   # roots visible immediately — the "drop" before the ripples
 
     def _place_candidate(parent_nid: str, cand: dict, level: int) -> str | None:
