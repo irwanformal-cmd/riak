@@ -49,6 +49,7 @@ const I18N = {
     searchPh: "Search events…", sensTitle: "Sensitivity sweep · how the prediction responds to this link",
     sensRunning: "sweeping…",
     expandTitle: "Expand network (hide sidebar)",
+    restoreTitle: "Restore sidebar",
   },
   id: {
     tagline: "Mesin prediksi sebab-akibat · “kalau ini, terus apa?”",
@@ -1504,7 +1505,8 @@ function bindEvents() {
   $("#fit-view").onclick = () => network.fitView();
   $("#relayout-btn").onclick = () => network.relayout();
 
-  // full‑screen network toggle: collapse the sidebar so the canvas spans the page
+  // full‑screen network toggle: collapse the sidebar so the canvas spans the page.
+  // Session-only — every fresh load returns to the normal layout.
   const netExpandBtn = document.createElement("button");
   netExpandBtn.id = "network-expand-btn";
   netExpandBtn.className = "btn btn-icon";
@@ -1516,17 +1518,11 @@ function bindEvents() {
     const full = !sidebar.classList.contains("hidden");
     sidebar.classList.toggle("hidden", full);
     content.classList.toggle("fullscreen", full);
-    try { localStorage.setItem("riak_network_fullscreen", full ? "1" : ""); } catch (e) {}
+    netExpandBtn.textContent = full ? "⤢" : "⛶";
+    netExpandBtn.title = full ? "Restore sidebar" : t("expandTitle");
     network.render();
   };
   $("#fit-view").parentNode.appendChild(netExpandBtn);
-  // restore saved full‑screen state on load
-  try {
-    if (localStorage.getItem("riak_network_fullscreen") === "1") {
-      document.querySelector(".sidebar").classList.add("hidden");
-      document.querySelector(".content").classList.add("fullscreen");
-    }
-  } catch (e) {}
 
   $("#connect-btn").onclick = () => {
     const on = !network.isConnectMode();
