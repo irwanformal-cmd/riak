@@ -96,12 +96,12 @@ h3 { margin: 0; font-size: 11px; font-family: "IBM Plex Mono", ui-monospace, Men
   opacity: .8;
 }
 .brand-text h1 {
-  /* wordmark: mono instrument label, not serif — "riak" is a tool, not a magazine */
-  font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  font-weight: 600;
+  /* wordmark: Manrope geometric sans — brighter blue for contrast on both palettes */
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 700;
   font-size: 21px;
-  letter-spacing: .04em;   /* less space, tighter for brand */
-  color: var(--brand);
+  letter-spacing: .04em;
+  color: #2E6FEF;
   line-height: 1.1;
 }
 .accent { color: var(--accent); }
