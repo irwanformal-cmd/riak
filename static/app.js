@@ -1502,6 +1502,31 @@ function bindEvents() {
   $("#zoom-out").onclick = () => network.zoom(0.87);
   $("#fit-view").onclick = () => network.fitView();
   $("#relayout-btn").onclick = () => network.relayout();
+
+  // full‑screen network toggle: collapse the sidebar so the canvas spans the page
+  const netExpandBtn = document.createElement("button");
+  netExpandBtn.id = "network-expand-btn";
+  netExpandBtn.className = "btn btn-icon";
+  netExpandBtn.title = t("expandTitle");
+  netExpandBtn.textContent = "⤢";
+  netExpandBtn.onclick = () => {
+    const sidebar = document.querySelector(".sidebar");
+    const content = document.querySelector(".content");
+    const full = !sidebar.classList.contains("hidden");
+    sidebar.classList.toggle("hidden", full);
+    content.classList.toggle("fullscreen", full);
+    try { localStorage.setItem("riak_network_fullscreen", full ? "1" : ""); } catch (e) {}
+    network.render();
+  };
+  $("#fit-view").parentNode.appendChild(netExpandBtn);
+  // restore saved full‑screen state on load
+  try {
+    if (localStorage.getItem("riak_network_fullscreen") === "1") {
+      document.querySelector(".sidebar").classList.add("hidden");
+      document.querySelector(".content").classList.add("fullscreen");
+    }
+  } catch (e) {}
+
   $("#connect-btn").onclick = () => {
     const on = !network.isConnectMode();
     network.setConnectMode(on);
