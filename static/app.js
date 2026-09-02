@@ -1509,7 +1509,7 @@ function bindEvents() {
   netExpandBtn.id = "network-expand-btn";
   netExpandBtn.className = "btn btn-icon";
   netExpandBtn.title = t("expandTitle");
-  netExpandBtn.textContent = "⤢";
+  netExpandBtn.textContent = "⛶";
   netExpandBtn.onclick = () => {
     const sidebar = document.querySelector(".sidebar");
     const content = document.querySelector(".content");
