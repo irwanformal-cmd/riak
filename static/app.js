@@ -38,6 +38,8 @@ const I18N = {
     donate: "Donate",
     llmSettings: "LLM provider settings", llmSettingsHint: "Connect Riak to any OpenAI-compatible provider · DeepSeek, OpenAI, Qwen, Ollama, or a custom endpoint. Leave empty to stay in offline (rule-based) mode.", llmTest: "Test connection", llmSave: "Save", llmTestOk: "Connection OK", llmTestFail: "Connection failed", llmSaved: "Saved · provider configured",
     undo: "Undo", redo: "Redo",
+    goalTitle: "How can this happen?", goalHint: "Name a desired outcome — Riak reasons backward from it and proposes prerequisite paths. Proposals are hypotheses, not predictions; nothing joins the network unless you add it.", goalPlaceholder: "e.g. Air pollution decreases by 40%", goalFind: "Find a path", goalLegTarget: "target (your goal)", goalLegReq: "generated requirement", goalLegProp: "proposed link",
+    repScenario: "Scenario", repEvents: "Events", repLinks: "Causal links", repMaxDepth: "Max depth", repTerminals: "Terminal outcomes", repBranching: "Branching points", repConvergence: "Convergence points", repRuns: "Simulation runs", repSpan: "Temporal span", repNotAvail: "N/A", repCritical: "Critical path", repLength: "Length", repProbability: "Probability", repStability: "Stability", repStructure: "Causal structure", repDepth: "Ripple depth", repDepthN: "Depth {n}", repAvgDepth: "Average depth", repBranch: "Branching", repConverge: "Convergence", repNone: "None in this network", repKeyNodes: "Key nodes", repInfluence: "High influence", repLongest: "Longest path", repComponents: "Components", repTemporal: "Temporal evolution", repScaleSeconds: "scale: seconds", repScaleHours: "scale: hours", repScaleDays: "scale: days", repScaleMonths: "scale: months", repScaleYears: "scale: years", repSim: "Simulation analysis", repSimultaneous: "all events at T+0", repGoal: "Goal backtracking", repGoalPath: "Path", repGoalConn: "Connects at", repGoalNote: "Hypotheses only — not merged into the network unless added from the Goal panel.", repAssump: "Assumptions & uncertainty", repNoSim: "Monte-Carlo ensemble not run for this prediction.", repQualitative: "Qualitative (directional) reasoning — magnitudes and timings are heuristic.",
     compareScenarios: "Compare scenarios", addScenario: "+ Add scenario", runComparison: "Run comparison",
     turbo: "Turbo",
     comparing: "Running comparison…", compareDone: "Comparison complete.", compareResults: "Scenario comparison",
@@ -87,6 +89,8 @@ const I18N = {
     donate: "Dukung",
     llmSettings: "Pengaturan provider LLM", llmSettingsHint: "Hubungkan Riak ke provider OpenAI-compatible apa pun · DeepSeek, OpenAI, Qwen, Ollama, atau endpoint custom. Kosongkan untuk tetap mode offline (berbasis aturan).", llmTest: "Tes koneksi", llmSave: "Simpan", llmTestOk: "Koneksi OK", llmTestFail: "Koneksi gagal", llmSaved: "Tersimpan · provider terkonfigurasi",
     undo: "Urungkan", redo: "Lakukan lagi",
+    goalTitle: "Bagaimana cara agar ini terjadi?", goalHint: "Tuliskan hasil yang diinginkan — Riak menalar mundur darinya dan mengusulkan jalur prasyarat. Usulan adalah hipotesis, bukan prediksi; tidak ada yang masuk ke jaringan kecuali Anda menambahkannya.", goalPlaceholder: "mis. Polusi udara turun 40%", goalFind: "Cari jalur", goalLegTarget: "target (tujuan Anda)", goalLegReq: "prasyarat hasil penalaran", goalLegProp: "tautan usulan",
+    repScenario: "Skenario", repEvents: "Peristiwa", repLinks: "Tautan kausal", repMaxDepth: "Kedalaman maks", repTerminals: "Hasil terminal", repBranching: "Titik cabang", repConvergence: "Titik konvergensi", repRuns: "Run simulasi", repSpan: "Rentang temporal", repNotAvail: "—", repCritical: "Jalur kritis", repLength: "Panjang", repProbability: "Probabilitas", repStability: "Stabilitas", repStructure: "Struktur kausal", repDepth: "Kedalaman riak", repDepthN: "Kedalaman {n}", repAvgDepth: "Kedalaman rata-rata", repBranch: "Percabangan", repConverge: "Konvergensi", repNone: "Tidak ada di jaringan ini", repKeyNodes: "Node kunci", repInfluence: "Pengaruh tinggi", repLongest: "Jalur terpanjang", repComponents: "Komponen", repTemporal: "Evolusi temporal", repScaleSeconds: "skala: detik", repScaleHours: "skala: jam", repScaleDays: "skala: hari", repScaleMonths: "skala: bulan", repScaleYears: "skala: tahun", repSim: "Analisis simulasi", repSimultaneous: "semua peristiwa di T+0", repGoal: "Penelusuran tujuan", repGoalPath: "Jalur", repGoalConn: "Terhubung di", repGoalNote: "Hanya hipotesis — tidak digabung ke jaringan kecuali ditambahkan dari panel Goal.", repAssump: "Asumsi & ketidakpastian", repNoSim: "Ensemble Monte-Carlo tidak dijalankan untuk prediksi ini.", repQualitative: "Penalaran kualitatif (arah hubungan) — besaran dan waktu bersifat heuristik.",
     compareScenarios: "Bandingkan skenario", addScenario: "+ Tambah skenario", runComparison: "Jalankan perbandingan",
     turbo: "Turbo",
     comparing: "Menjalankan perbandingan…", compareDone: "Perbandingan selesai.", compareResults: "Perbandingan skenario",
@@ -132,6 +136,8 @@ const I18N = {
     donate: "支持",
     llmSettings: "LLM 提供商设置", llmSettingsHint: "将 Riak 连接到任何 OpenAI 兼容提供商。留空则保持离线（基于规则）模式。", llmTest: "测试连接", llmSave: "保存", llmTestOk: "连接成功", llmTestFail: "连接失败", llmSaved: "已保存",
     undo: "撤销", redo: "重做",
+    goalTitle: "如何实现这一目标？", goalHint: "输入期望的结果 — Riak 会从目标反向推理，提出前提路径。这些只是假设而非预测；只有您确认添加后才会并入网络。", goalPlaceholder: "例如：空气污染下降 40%", goalFind: "查找路径", goalLegTarget: "目标（您的期望）", goalLegReq: "生成的先决条件", goalLegProp: "提议的连接",
+    repScenario: "情景", repEvents: "事件", repLinks: "因果连接", repMaxDepth: "最大深度", repTerminals: "终端结果", repBranching: "分支点", repConvergence: "汇聚点", repRuns: "模拟次数", repSpan: "时间跨度", repNotAvail: "—", repCritical: "关键路径", repLength: "长度", repProbability: "概率", repStability: "稳定性", repStructure: "因果结构", repDepth: "涟漪深度", repDepthN: "深度 {n}", repAvgDepth: "平均深度", repBranch: "分支", repConverge: "汇聚", repNone: "此网络中无", repKeyNodes: "关键节点", repInfluence: "高影响力", repLongest: "最长路径", repComponents: "连通分量", repTemporal: "时间演化", repScaleSeconds: "刻度：秒", repScaleHours: "刻度：小时", repScaleDays: "刻度：天", repScaleMonths: "刻度：月", repScaleYears: "刻度：年", repSim: "模拟分析", repSimultaneous: "所有事件均在 T+0", repGoal: "目标回溯", repGoalPath: "路径", repGoalConn: "连接于", repGoalNote: "仅为假设 — 除非在目标面板中确认，否则不会并入网络。", repAssump: "假设与不确定性", repNoSim: "本次预测未运行蒙特卡洛集成。", repQualitative: "定性（方向性）推理 — 数值与时间为启发式估计。",
     compareScenarios: "对比场景", addScenario: "+ 添加场景", runComparison: "运行对比",
     turbo: "极速",
     comparing: "正在运行对比…", compareDone: "对比完成。", compareResults: "场景对比",
@@ -902,60 +908,248 @@ async function generateReport() {
   } catch (e) { $("#report-body").innerHTML = `<div class="r-summary">${escapeHtml(e.message)}</div>`; }
 }
 
+/* Jump from any report element to the SAME node in the main network —
+ * report and canvas share node IDs, never duplicate data. */
+function focusNodeFromReport(id) {
+  if (!id || !state.web) return;
+  switchTab("network");
+  network.select(id);
+  network.pulsePath([id]);
+  window.scrollTo({ top: $("#results").offsetTop - 10, behavior: "smooth" });
+}
+
+/* merge structure_chains (root→terminal walks) into one prefix tree */
+function _repTree(chains) {
+  const root = { kids: new Map() };
+  (chains || []).forEach((sc) => {
+    let cur = root;
+    (sc.chain || []).forEach((n) => {
+      if (!cur.kids.has(n.id)) cur.kids.set(n.id, { id: n.id, text: n.text, kids: new Map() });
+      cur = cur.kids.get(n.id);
+    });
+  });
+  return root;
+}
+
+function _repTreeHtml(node, depth) {
+  let html = "";
+  node.kids.forEach((k) => {
+    html += `<li style="--d:${depth}"><span class="rep-tree-node" data-nid="${k.id}" role="button" tabindex="0">${escapeHtml(k.text)}</span>`;
+    if (k.kids.size) html += `<ul>${_repTreeHtml(k, depth + 1)}</ul>`;
+    html += `</li>`;
+  });
+  return html;
+}
+
+function _repTimelineSvg(tl) {
+  /* adaptive horizontal timeline — linear scale, log scale for extreme
+   * ranges, rank spacing when every event is simultaneous (no fake spread) */
+  const W = 640, H = 96, PAD = 14;
+  if (!tl.length) return "";
+  const offs = tl.map((s) => s.offset_seconds || 0);
+  const max = Math.max(...offs);
+  const positives = offs.filter((o) => o > 0);
+  const minPos = positives.length ? Math.min(...positives) : 0;
+  const simultaneous = max === 0;
+  const logScale = !simultaneous && minPos > 0 && max / minPos > 50;
+  const px = (i, o) => {
+    if (simultaneous) return PAD + (tl.length === 1 ? 0.5 : i / (tl.length - 1)) * (W - 2 * PAD);
+    if (logScale) return PAD + (Math.log10(o + 1) / Math.log10(max + 1)) * (W - 2 * PAD);
+    return PAD + (o / max) * (W - 2 * PAD);
+  };
+  let dots = "", labels = "";
+  tl.forEach((s, i) => {
+    const x = px(i, offs[i]).toFixed(1);
+    const up = i % 2 === 0;
+    const ty = up ? 22 : 88, ly = up ? 34 : 76;
+    dots += `<line x1="${x}" y1="50" x2="${x}" y2="${up ? 36 : 64}" class="rep-tl-stem"/>` +
+      `<circle cx="${x}" cy="50" r="4.5" class="rep-tl-dot" data-nid="${s.id}"><title>${escapeHtml(s.text)}</title></circle>`;
+    labels += `<text x="${x}" y="${ty}" class="rep-tl-off" text-anchor="middle">${escapeHtml(s.offset || "")}</text>` +
+      `<text x="${x}" y="${ly}" class="rep-tl-txt" text-anchor="middle">${escapeHtml(_repClip(s.text, 14))}</text>`;
+  });
+  const note = simultaneous ? `<text x="${W - PAD}" y="12" class="rep-tl-note" text-anchor="end">${escapeHtml(t("repSimultaneous"))}</text>`
+    : logScale ? `<text x="${W - PAD}" y="12" class="rep-tl-note" text-anchor="end">log</text>` : "";
+  return `<svg viewBox="0 0 ${W} ${H}" class="rep-timeline" role="img" aria-label="timeline">
+    <line x1="${PAD}" y1="50" x2="${W - PAD}" y2="50" class="rep-tl-axis"/>${note}${dots}${labels}</svg>`;
+}
+
+function _repClip(s, n) {
+  s = String(s || "");
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
 function renderReport(r) {
   const box = $("#report-body");
-  let html = `<div class="r-summary">${escapeHtml(r.summary || "")}</div>`;
+  const a = r.analysis || null;
+  const NA = escapeHtml(t("repNotAvail"));
+  const nodeChip = (id, text, extra = "") =>
+    `<span class="rep-node" data-nid="${id}" role="button" tabindex="0">${escapeHtml(text)}${extra}</span>`;
 
-  if (r.chain && r.chain.length) {
-    html += `<div class="r-section"><h3>${t("chain")}</h3><div class="chain">`;
-    r.chain.forEach((c, i) => {
-      html += `<span class="chain-node">${escapeHtml(c)}</span>`;
-      if (i < r.chain.length - 1) html += `<span class="chain-arrow">→</span>`;
-    });
-    html += `</div></div>`;
+  /* ================= A · executive summary ================= */
+  const topic = (state.web && state.web.topic) || (state.currentProject && state.currentProject.seed_text) || "";
+  let html = `<div class="rep-hero">
+      <div class="rep-hero-label">${escapeHtml(t("repScenario"))}</div>
+      <div class="rep-hero-topic">${escapeHtml(_repClip(topic, 220))}</div>
+      <div class="r-summary">${escapeHtml(r.summary || "")}</div>
+    </div>`;
+
+  if (a) {
+    const s = a.stats;
+    const span = a.temporal_span || {};
+    const cards = [
+      [s.nodes, t("repEvents")], [s.edges, t("repLinks")], [s.max_depth, t("repMaxDepth")],
+      [s.terminals, t("repTerminals")], [s.branching_points, t("repBranching")],
+      [s.convergence_points, t("repConvergence")],
+      [a.simulation ? a.simulation.runs : null, t("repRuns")],
+      [span.duration && span.duration !== "0s" ? span.duration : null, t("repSpan")],
+    ];
+    html += `<div class="rep-statgrid">` + cards.map(([v, label]) =>
+      `<div class="rep-stat"><div class="rep-stat-v">${v == null ? NA : escapeHtml(String(v))}</div><div class="rep-stat-l">${escapeHtml(label)}</div></div>`
+    ).join("") + `</div>`;
+  } else {
+    html += `<div class="r-section"><h3>${t("web")}</h3><p>${r.n_nodes} events · ${r.n_edges} causal links</p></div>`;
   }
 
-  if (r.top_outcomes && r.top_outcomes.length) {
-    html += `<div class="r-section"><h3>${t("outcomes")}</h3>`;
-    html += `<div style="max-width:560px">`;
-    r.top_outcomes.forEach((o) => {
+  if (!a) { box.innerHTML = html; return; }
+
+  /* ================= B · critical path ================= */
+  const cp = a.critical_path;
+  if (cp && cp.node_ids && cp.node_ids.length) {
+    const steps = cp.node_ids.map((id, i) => {
+      const off = cp.offsets_seconds && cp.offsets_seconds[i] != null
+        ? `<span class="rep-off">${escapeHtml(TimeUtil.formatOffset(cp.offsets_seconds[i]))}</span>` : "";
+      return nodeChip(id, cp.texts[i] || id) + off;
+    }).join(`<span class="chain-arrow">→</span>`);
+    const meta = [
+      `${t("repLength")}: ${cp.length}`,
+      cp.temporal_span && cp.temporal_span !== "0s" ? `${t("repSpan")}: ${escapeHtml(cp.temporal_span)}` : null,
+      typeof cp.probability === "number" ? `${t("repProbability")}: ${Math.round(cp.probability * 100)}%` : null,
+      typeof cp.stability === "number" ? `${t("repStability")}: ${Math.round(cp.stability * 100)}%` : null,
+    ].filter(Boolean).map((m) => `<span class="rep-meta">${escapeHtml(m)}</span>`).join("");
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repCritical"))}</h3>
+      <div class="chain rep-chain">${steps}</div><div class="rep-meta-row">${meta}</div></div>`;
+  }
+
+  /* ================= C · causal structure ================= */
+  if (a.structure_chains && a.structure_chains.length) {
+    const tree = _repTree(a.structure_chains);
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repStructure"))}</h3>
+      <ul class="rep-tree">${_repTreeHtml(tree, 0)}</ul></div>`;
+  }
+
+  /* ================= D · ripple depth ================= */
+  if (a.depth_histogram && a.depth_histogram.length) {
+    const peak = Math.max(...a.depth_histogram.map((d) => d.count), 1);
+    const rows = a.depth_histogram.map((d) =>
+      `<div class="bar-row"><span class="rep-depth-l">${t("repDepthN").replace("{n}", d.level)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.count / peak * 100)}%"></div></div>
+        <span class="bar-val">${d.count}</span></div>`).join("");
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repDepth"))}</h3><div class="rep-bars">${rows}</div>
+      <p class="hint">${t("repAvgDepth")}: ${a.stats.avg_depth}</p></div>`;
+  }
+
+  /* ================= E · top outcomes ================= */
+  if (a.top_outcomes && a.top_outcomes.length) {
+    const peak = Math.max(...a.top_outcomes.map((o) => o.probability || 0), 0.001);
+    const rows = a.top_outcomes.map((o) => {
       const pct = Math.round((o.probability || 0) * 100);
-      html += `<div class="bar-row"><span>${escapeHtml(o.text)}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div>`;
-    });
-    html += `</div></div>`;
+      return `<div class="bar-row rep-click" data-nid="${o.id}" role="button" tabindex="0">
+        <span>${escapeHtml(o.text)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round((o.probability || 0) / peak * 100)}%"></div></div>
+        <span class="bar-val">${pct}%</span></div>`;
+    }).join("");
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("outcomes"))}</h3><div class="rep-bars">${rows}</div></div>`;
   }
 
-  /* ---- prediction extras (absent on older projects) ---- */
-  const pred = state.prediction || {};
-  const ens = pred.ensemble;
-  if (ens && ens.confidence && typeof ens.confidence.mean === "number") {
-    const line = t("ensembleLine")
-      .replace("{mean}", Math.round(ens.confidence.mean * 100))
-      .replace("{lo}", Math.round((ens.confidence.lo || 0) * 100))
-      .replace("{hi}", Math.round((ens.confidence.hi || 0) * 100))
-      .replace("{runs}", ens.runs || 0)
-      .replace("{stab}", Math.round((ens.chain_stability || 0) * 100));
-    html += `<p class="hint">${escapeHtml(line)}</p>`;
+  /* ================= F · branching & convergence ================= */
+  const listSide = (items, key, empty) => {
+    if (!items || !items.length) return `<p class="hint">${escapeHtml(empty)}</p>`;
+    return items.map((b) =>
+      `<div class="rep-fork">${nodeChip(b.id, b.text, `<i class="rep-count">${b.count}</i>`)}
+        <div class="rep-fork-kids">${(b[key] || []).map((c) => nodeChip(c.id, _repClip(c.text, 34))).join("")}</div>
+      </div>`).join("");
+  };
+  html += `<div class="rep-duo">
+    <div class="r-section rep-card"><h3>${escapeHtml(t("repBranch"))}</h3>${listSide(a.branching, "children", t("repNone"))}</div>
+    <div class="r-section rep-card"><h3>${escapeHtml(t("repConverge"))}</h3>${listSide(a.convergence, "parents", t("repNone"))}</div>
+  </div>`;
+
+  /* ================= G · key nodes ================= */
+  const kn = a.key_nodes || {};
+  const knRow = (label, items, valK) => (items && items.length)
+    ? `<div class="rep-kn-row"><span class="rep-kn-label">${escapeHtml(label)}</span>${items.map((x) =>
+        nodeChip(x.id, _repClip(x.text, 30), `<i class="rep-count">${x[valK]}</i>`)).join("")}</div>` : "";
+  const knHtml =
+    knRow(t("repInfluence"), kn.influence, "descendants") +
+    knRow(t("repTerminals"), kn.terminals, "probability");
+  if (knHtml) html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repKeyNodes"))}</h3>${knHtml}
+    ${a.longest_path ? `<p class="hint">${t("repLongest")}: ${a.longest_path.length} · ${t("repComponents")}: ${a.stats.components}</p>` : ""}</div>`;
+
+  /* ================= H · temporal evolution ================= */
+  if (a.timeline && a.timeline.length) {
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repTemporal"))}</h3>
+      ${_repTimelineSvg(a.timeline)}
+      <div class="rep-meta-row">
+        <span class="rep-meta">${t("repSpan")}: ${escapeHtml(a.temporal_span.duration)}</span>
+        <span class="rep-meta">${escapeHtml(t("repScale" + a.temporal_span.scale.charAt(0).toUpperCase() + a.temporal_span.scale.slice(1)))}</span>
+      </div></div>`;
   }
 
-  if (pred.feedback_loop) {
-    html += `<div class="r-section"><span class="badge badge-off">${escapeHtml(t("feedbackLoopWarn"))}</span></div>`;
+  /* ================= I · simulation analysis ================= */
+  if (a.simulation && a.simulation.confidence) {
+    const c = a.simulation.confidence;
+    const lo = Math.round((c.lo || 0) * 100), mean = Math.round((c.mean || 0) * 100), hi = Math.round((c.hi || 0) * 100);
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repSim"))}</h3>
+      <div class="rep-ci">
+        <div class="rep-ci-track"><div class="rep-ci-band" style="left:${lo}%;width:${Math.max(1, hi - lo)}%"></div>
+        <div class="rep-ci-mean" style="left:${mean}%"></div></div>
+        <div class="rep-ci-labels"><span>P10 ${lo}%</span><span>${mean}%</span><span>P90 ${hi}%</span></div>
+      </div>
+      <div class="rep-meta-row">
+        <span class="rep-meta">${t("repRuns")}: ${a.simulation.runs}</span>
+        ${typeof a.simulation.chain_stability === "number" ? `<span class="rep-meta">${t("repStability")}: ${Math.round(a.simulation.chain_stability * 100)}%</span>` : ""}
+      </div></div>`;
   }
 
-  const timeline = Array.isArray(pred.timeline) ? pred.timeline : [];
-  if (timeline.length) {
-    html += `<div class="r-section"><h3>${t("timelineTitle")}</h3><ol style="max-width:560px;margin:0;padding-left:20px">`;
-    timeline.forEach((s) => {
-      const day = s && typeof s.day === "number" ? s.day : "–";
-      html += `<li style="margin-bottom:6px"><span class="badge">${escapeHtml(t("dayN").replace("{n}", day))}</span> ${escapeHtml((s && s.text) || "")}</li>`;
-    });
-    html += `</ol></div>`;
+  /* ================= J · goal backtracking ================= */
+  const g = state.goalLast;
+  if (g && g.target_text) {
+    let gHtml = `<div class="rep-goal-target">◎ ${escapeHtml(g.target_text)}</div>`;
+    if (g.case === "existing") {
+      gHtml += `<p class="hint">${escapeHtml(g.message || "")}</p>`;
+    } else if (g.paths && g.paths.length) {
+      gHtml += g.paths.map((p, i) => {
+        const steps = p.chain.map((c, k) =>
+          `<li class="${k === p.chain.length - 1 ? "goal-step-target" : ""}">${escapeHtml(c.text)}</li>`).join("");
+        return `<div class="rep-goal-path"><div class="rep-goal-head">${t("repGoalPath")} ${i + 1}
+            <span class="goal-conf">${escapeHtml(p.confidence)}</span></div>
+          <ol class="goal-steps">${steps}</ol>
+          ${p.connects_to ? `<p class="goal-connect">${t("repGoalConn")}: <b>${escapeHtml(p.connects_text || "")}</b></p>` : ""}
+        </div>`;
+      }).join("");
+      gHtml += `<p class="hint">${escapeHtml(t("repGoalNote"))}</p>`;
+    } else {
+      gHtml += `<p class="hint">${escapeHtml(g.message || "")}</p>`;
+    }
+    html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repGoal"))}</h3>${gHtml}</div>`;
   }
 
-  html += `<div class="r-section"><h3>${t("web")}</h3>
-    <p>${r.n_nodes} events · ${r.n_edges} causal links</p></div>`;
+  /* ================= K · assumptions & uncertainty ================= */
+  const notes = [];
+  if (a.feedback_loop) notes.push(t("feedbackLoopWarn"));
+  if (!a.simulation) notes.push(t("repNoSim"));
+  notes.push(t("repQualitative"));
+  html += `<div class="r-section rep-card"><h3>${escapeHtml(t("repAssump"))}</h3>
+    <ul class="rep-notes">${notes.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul></div>`;
 
   box.innerHTML = html;
+
+  /* wire interactions: every chip/bar focuses the same node in the network */
+  box.querySelectorAll("[data-nid]").forEach((el) => {
+    const go = () => focusNodeFromReport(el.getAttribute("data-nid"));
+    el.addEventListener("click", go);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  });
 }
 
 /* ---- chat (interact) + user graph editing ---- */
@@ -1504,6 +1698,149 @@ function bindEvents() {
   $("#zoom-out").onclick = () => network.zoom(0.87);
   $("#fit-view").onclick = () => network.fitView();
   $("#relayout-btn").onclick = () => network.relayout();
+  $("#gather-btn").onclick = () => network.gather();
+  $("#spread-btn").onclick = () => network.spread();
+
+  // 2D ↔ 3D view morph — same network, two visualization modes
+  const setViewMode = (m) => {
+    network.setMode(m);
+    $("#view-2d").classList.toggle("active", m === "2d");
+    $("#view-3d").classList.toggle("active", m === "3d");
+  };
+  $("#view-2d").onclick = () => setViewMode("2d");
+  $("#view-3d").onclick = () => setViewMode("3d");
+
+  /* ---------------- goal backtracking — "How can this happen?" ------------
+   * The engine returns a PROPOSAL (hypothesis layer). Proposed nodes/edges
+   * are rendered as an overlay on top of state.web — state.web itself is
+   * untouched until the user explicitly adds a path (which goes through the
+   * normal /api/graph mutations, so undo/redo keep working). */
+  const goalModal = $("#goal-modal");
+  const goalEsc = (s) => String(s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let goalOverlay = null;          // { nodes:[], edges:[] } currently displayed
+  const goalOpen = () => {
+    if (!state.currentProject || !state.web) return;
+    goalModal.classList.remove("hidden");
+    setTimeout(() => $("#goal-input").focus(), 60);
+  };
+  const goalClose = () => goalModal.classList.add("hidden");
+  $("#goal-btn").onclick = goalOpen;
+  $("#goal-close").onclick = goalClose;
+  goalModal.addEventListener("click", (e) => { if (e.target === goalModal) goalClose(); });
+
+  const goalDismiss = (silent) => {
+    if (!goalOverlay) return;
+    goalOverlay = null;
+    network.resetWeb(state.web);     // original network restored exactly
+    if (!silent) $("#goal-result").innerHTML = "";
+  };
+
+  const goalShowOverlay = (res) => {
+    goalDismiss(true);
+    const nodes = [...state.web.nodes], edges = [...state.web.edges];
+    res.paths.forEach((p) => {
+      p.nodes.forEach((n) => nodes.push(n));
+      p.edges.forEach((e) => edges.push(e));
+    });
+    goalOverlay = { nodes, edges };
+    network.setWeb({ nodes, edges });
+    // reverse ripple: target first, then each requirement back toward the web
+    res.paths.forEach((p, pi) => {
+      const ids = [...p.nodes].reverse().map((n) => n.id);
+      setTimeout(() => network.pulsePath(ids), 250 + pi * 450);
+    });
+  };
+
+  async function goalAcceptPath(path, cardEl) {
+    // translate the proposed chain into ordinary graph mutations, node by
+    // node (each call returns the real id of the node it created)
+    const seq = path.nodes;        // requirements..., target last
+    let prevReal = path.connects_to;
+    try {
+      for (const n of seq) {
+        if (!prevReal) break;      // unconnected root of a path: add as new root intervention? skip — user can connect manually
+        const out = await api("/api/graph", {
+          project_id: state.currentProject.id, lang: LANG,
+          mutations: [{ op: "add_node", to: prevReal, text: n.text, relation: "leads_to" }],
+        });
+        const created = (out.mutations || []).find((m) => m.op === "add_node");
+        prevReal = created ? created.id : null;
+        applyGraphUpdate(out.web, out.prediction);
+      }
+      goalOverlay = null;          // web now contains the accepted chain
+      if (cardEl) cardEl.remove();
+    } catch (err) {
+      alert((LANG === "id" ? "Gagal menambahkan jalur: " : "Could not add the path: ") + (err.message || err));
+    }
+  }
+
+  function goalRenderResult(res) {
+    state.goalLast = res;          // surfaced in the report's Goal section
+    const host = $("#goal-result");
+    const esc = goalEsc;
+    if (res.case === "existing") {
+      const steps = (res.upstream_paths[0] || []).map((id) => {
+        const n = state.web.nodes.find((x) => x.id === id);
+        return `<li class="${id === res.target_node_id ? "goal-step-target" : "goal-step-existing"}">${esc(n ? n.text : id)}</li>`;
+      }).join("");
+      host.innerHTML = `
+        <p class="goal-case-note">${esc(res.message)}</p>
+        <div class="goal-path"><h4>${esc(res.matched_text)} <span class="goal-conf">${LANG === "id" ? "sudah ada" : "in network"}</span></h4>
+          <ol class="goal-steps">${steps}</ol>
+        </div>`;
+      network.select(res.target_node_id);
+      network.pulsePath([...res.upstream_paths[0] || []].reverse());
+      return;
+    }
+    if (!res.paths || !res.paths.length) {
+      host.innerHTML = `<p class="goal-case-note">${esc(res.message)}</p>`;
+      return;
+    }
+    host.innerHTML = `<p class="goal-case-note">${esc(res.message)}</p>` +
+      res.paths.map((p, i) => {
+        const steps = [...p.chain].reverse().map((c, k, arr) => {
+          const cls = k === arr.length - 1 ? "goal-step-target" : "";
+          return `<li class="${cls}">${esc(c.text)}</li>`;
+        }).join("");
+        const conn = p.connects_to
+          ? `<p class="goal-connect">${LANG === "id" ? "Terhubung ke jaringan di" : "Connects to the network at"}: <b>${esc(p.connects_text)}</b></p>`
+          : `<p class="goal-connect">${LANG === "id" ? "Tidak ada koneksi kuat ke jaringan" : "No strong connection into the current network"}</p>`;
+        const assump = (p.assumptions || []).map((a) => `<p class="goal-assump">△ ${esc(a)}</p>`).join("");
+        return `<div class="goal-path" data-path="${i}">
+          <h4>${LANG === "id" ? "Jalur" : "Path"} ${i + 1} <span class="goal-conf">${esc(p.confidence)}</span></h4>
+          <ol class="goal-steps">${steps}</ol>
+          ${conn}${assump}
+          <div class="goal-actions">
+            ${p.connects_to ? `<button class="btn btn-primary btn-sm goal-accept" data-path="${i}">${LANG === "id" ? "Tambahkan jalur" : "Add path"}</button>` : ""}
+          </div>
+        </div>`;
+      }).join("") +
+      `<div class="goal-actions"><button class="btn btn-sm" id="goal-dismiss">${LANG === "id" ? "Abaikan semua" : "Dismiss all"}</button></div>`;
+    host.querySelectorAll(".goal-accept").forEach((b) => {
+      b.onclick = () => goalAcceptPath(res.paths[+b.dataset.path], b.closest(".goal-path"));
+    });
+    const dis = $("#goal-dismiss");
+    if (dis) dis.onclick = () => goalDismiss();
+    goalShowOverlay(res);
+  }
+
+  async function goalRun() {
+    const target = $("#goal-input").value.trim();
+    if (!target || !state.currentProject) return;
+    const btn = $("#goal-submit");
+    btn.disabled = true;
+    $("#goal-result").innerHTML = `<p class="hint">${LANG === "id" ? "Menelusuri prasyarat…" : "Tracing prerequisites…"}</p>`;
+    try {
+      const res = await api("/api/goal", { project_id: state.currentProject.id, target, lang: LANG });
+      goalRenderResult(res);
+    } catch (err) {
+      $("#goal-result").innerHTML = `<p class="goal-case-note">${esc(err.message || err)}</p>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  $("#goal-submit").onclick = goalRun;
+  $("#goal-input").addEventListener("keydown", (e) => { if (e.key === "Enter") goalRun(); });
 
   // full‑screen network toggle: collapse the sidebar so the canvas spans the page.
   // Session-only — every fresh load returns to the normal layout.

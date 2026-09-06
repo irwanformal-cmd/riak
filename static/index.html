@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
@@ -120,12 +120,19 @@
           <div class="vizbar">
             <div class="legend" id="network-legend"></div>
             <span class="viz-actions">
+              <span class="view-switch" role="group" aria-label="Network view mode">
+                <button id="view-2d" class="seg-btn" type="button" title="2D causal map">2D</button>
+                <button id="view-3d" class="seg-btn active" type="button" title="3D causal ripple">3D</button>
+              </span>
               <button id="undo-btn" class="btn btn-icon" title="Undo" data-i18n-title="undo">↶</button>
               <button id="redo-btn" class="btn btn-icon" title="Redo" data-i18n-title="redo">↷</button>
               <button id="zoom-in" class="btn btn-icon" title="Zoom in">+</button>
               <button id="zoom-out" class="btn btn-icon" title="Zoom out">−</button>
               <button id="fit-view" class="btn btn-icon" title="Fit view">⤢</button>
               <button id="relayout-btn" class="btn btn-icon" title="Re-layout">⟳</button>
+              <button id="gather-btn" class="btn btn-sm spacing-btn" title="Gather — bring nodes slightly closer">− Gather</button>
+              <button id="spread-btn" class="btn btn-sm spacing-btn" title="Spread — push nodes slightly apart">＋ Spread</button>
+              <button id="goal-btn" class="btn btn-sm spacing-btn" title="How can this happen? — goal backtracking">◎ Goal</button>
               <button id="connect-btn" class="btn btn-icon" title="Connect two nodes">⇄</button>
               <button id="formula-btn" class="btn btn-icon" title="Mathematical derivation">∂</button>
             </span>
@@ -202,6 +209,28 @@
     </div>
   </main>
 
+  <div id="goal-modal" class="modal hidden">
+    <div class="modal-box goal-box">
+      <div class="modal-head">
+        <h3>◎ <span data-i18n="goalTitle">How can this happen?</span></h3>
+        <button id="goal-close" class="btn btn-icon">✕</button>
+      </div>
+      <p class="hint" data-i18n="goalHint">Name a desired outcome — Riak reasons backward from it and proposes prerequisite paths. Proposals are hypotheses, not predictions; nothing joins the network unless you add it.</p>
+      <div class="goal-input-row">
+        <input id="goal-input" type="text" maxlength="300"
+               placeholder="e.g. Air pollution decreases by 40%"
+               data-i18n-ph="goalPlaceholder" />
+        <button id="goal-submit" class="btn btn-primary" data-i18n="goalFind">Find a path</button>
+      </div>
+      <div id="goal-result" class="goal-result"></div>
+      <div class="goal-legend">
+        <span><i class="goal-dot goal-dot-target"></i><span data-i18n="goalLegTarget">target (your goal)</span></span>
+        <span><i class="goal-dot goal-dot-req"></i><span data-i18n="goalLegReq">generated requirement</span></span>
+        <span><i class="goal-dash"></i><span data-i18n="goalLegProp">proposed link</span></span>
+      </div>
+    </div>
+  </div>
+
   <div id="settings-modal" class="modal hidden">
     <div class="modal-box">
       <div class="modal-head">
@@ -262,11 +291,14 @@
   <div id="toast" class="toast hidden"></div>
 
   <script>
-    window.PALETTE_LIGHT = { bg:"#FAF7F0", panel:"#FFFEFB", panel2:"#F6F1E7", border:"#E0D9C8", text:"#1C1A15", muted:"#6E6759", accent:"#1F3BB3", accentRGB:[31,59,179], accent2:"#162C8C", pos:"#2E7D4F", neg:"#B33A2B", neutral:"#9A937F", root:"#1F3BB3", intervention:"#B33A2B", amber:"#9A6B2F", amberRGB:[154,107,47], axis:"#E0D9C8", axisText:"#6E6759", grid:"rgba(224,217,200,.6)", zeroLine:"rgba(110,103,89,.4)", label:"#1C1A15", cardBg:"rgba(255,254,251,.97)", cardBorder:"#E0D9C8", edgeRGB:[140,132,116], negRGB:[179,58,43] };
-    window.PALETTE_DARK = { bg:"#0A1020", panel:"#101A2E", panel2:"#152138", border:"#20304E", text:"#D9E4F2", muted:"#8DA2BC", accent:"#67E8F9", accentRGB:[103,232,249], accent2:"#38BDD4", pos:"#4ADE97", neg:"#E8796F", neutral:"#A9BAD0", root:"#7FA6F0", intervention:"#E8796F", amber:"#E0B36A", amberRGB:[224,179,106], axis:"#2A3D60", axisText:"#8DA2BC", grid:"rgba(42,61,96,.55)", zeroLine:"rgba(141,162,188,.45)", label:"#D9E4F2", cardBg:"rgba(16,26,46,.97)", cardBorder:"#20304E", edgeRGB:[118,148,185], negRGB:[232,121,111] };
+    window.PALETTE_LIGHT = { bg:"#EEF5F8", panel:"#FDFEFF", panel2:"#EBF3F7", border:"#CFDEE6", text:"#0E2A38", muted:"#55788C", accent:"#136F8F", accentRGB:[19,111,143], accent2:"#0E5A76", pos:"#1F9E73", neg:"#C0453A", neutral:"#8AA3B2", root:"#136F8F", intervention:"#C0453A", amber:"#A87A2E", amberRGB:[168,122,46], axis:"#CFDEE6", axisText:"#55788C", grid:"rgba(207,222,230,.7)", zeroLine:"rgba(85,120,140,.4)", label:"#0E2A38", cardBg:"rgba(253,254,255,.97)", cardBorder:"#CFDEE6", edgeRGB:[140,168,182], negRGB:[192,69,58] };
+    window.PALETTE_DARK = { bg:"#051523", panel:"#082032", panel2:"#0A2739", border:"#14334A", text:"#E9F4F8", muted:"#9DB8C6", accent:"#7FD4E8", accentRGB:[127,212,232], accent2:"#2EA8C9", pos:"#4FD6A5", neg:"#E8796F", neutral:"#5F7D8F", root:"#7FD4E8", intervention:"#E8796F", amber:"#E0B36A", amberRGB:[224,179,106], axis:"#14334A", axisText:"#9DB8C6", grid:"rgba(20,51,74,.55)", zeroLine:"rgba(157,184,198,.45)", label:"#E9F4F8", cardBg:"rgba(8,32,50,.97)", cardBorder:"#14334A", edgeRGB:[110,160,185], negRGB:[232,121,111] };
     window.PALETTE = Object.assign({}, window.PALETTE_LIGHT);
   </script>
+  <canvas id="cursor-ripples" aria-hidden="true"></canvas>
   <script async src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script src="ripple.js"></script>
+  <script src="timeutil.js"></script>
   <script src="network.js"></script>
   <script src="mathviz.js"></script>
   <script src="app.js"></script>

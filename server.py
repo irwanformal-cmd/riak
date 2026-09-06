@@ -28,7 +28,7 @@ from logging.handlers import RotatingFileHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from engine import causal, fetch, llm, trajectory  # noqa: E402
+from engine import analysis as engine_analysis, causal, fetch, goal as engine_goal, llm, timeutil, trajectory  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(ROOT, "static")
@@ -88,7 +88,7 @@ _RATE_WINDOW = 60.0
 # ceiling than the generic one. Separate bucket per IP.
 _HEAVY_PATHS = frozenset({
     "/api/projects", "/api/simulate", "/api/develop", "/api/compare",
-    "/api/report", "/api/chat", "/api/derive", "/api/fetch-url",
+    "/api/report", "/api/chat", "/api/derive", "/api/fetch-url", "/api/goal",
 })
 _HEAVY_RATE: dict[str, list] = {}
 _HEAVY_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT_HEAVY") or
@@ -381,6 +381,22 @@ def _load_samples() -> list[dict]:
 
 
 # ---------------------------------------------------------------- endpoints
+def _ensure_prediction(p: dict, lang: str | None = None) -> dict:
+    """Guarantee the project has a base prediction.
+
+    Likelihood propagation (causal.predict) is deterministic and LLM-free, so
+    a freshly built web can always show likelihoods and produce a report —
+    even before the user presses Run (which re-runs with interventions and
+    the Monte-Carlo ensemble and overwrites this base prediction)."""
+    if p.get("prediction") is not None:
+        return p["prediction"]
+    web = p.get("result_web") or p["web"]
+    pred = causal.predict(web, lang=lang or p.get("lang") or "en")
+    p["prediction"] = pred
+    _save_project(p)
+    return pred
+
+
 def handle_create_project(body: dict, on_progress=None) -> dict:
     name = (body.get("name") or "Untitled scenario").strip()[:120]
     seed_text = (body.get("seed_text") or "").strip()
@@ -414,6 +430,7 @@ def handle_create_project(body: dict, on_progress=None) -> dict:
         "report": None,
         "job": job,
     }
+    _ensure_prediction(p, lang)   # base likelihoods from the moment it is built
     with _lock:
         projects[pid] = p
         _save_project(p)
@@ -469,9 +486,16 @@ def handle_report(body: dict) -> dict:
     if not p:
         raise ValueError("project not found")
     if p.get("prediction") is None:
-        raise ValueError("run a prediction first")
+        _ensure_prediction(p)   # deterministic base — no need to hard-fail
     lang = str(body.get("lang") or p.get("lang") or "en").strip()
     rep = causal.causal_report(p.get("result_web") or p["web"], p["prediction"], lang=lang)
+    # deterministic analytical layer (graph + simulation + timeline) — the
+    # frontend renders the dashboard from this; every number is sourced
+    try:
+        rep["analysis"] = engine_analysis.analyze(
+            p.get("result_web") or p["web"], p["prediction"], lang=lang)
+    except Exception:
+        logging.getLogger("riak").exception("analysis layer failed")
     with _lock:
         p["report"] = rep
         _save_project(p)
@@ -602,6 +626,32 @@ def handle_develop(body: dict) -> dict:
     prediction = causal.predict(web, lang=lang)
     _store_result(p, web, prediction)
     return {"reply": reply, "mutations": applied, "web": web, "prediction": prediction}
+
+
+def handle_goal(body: dict) -> dict:
+    """Goal backtracking ("How can this happen?") — returns a PROPOSAL layer
+    only; the project's web is never modified here. Accepting a path goes
+    through the normal /api/graph mutations (so undo/redo keep working)."""
+    pid = body.get("project_id")
+    with _lock:
+        p = projects.get(pid)
+    if not p:
+        raise ValueError("project not found")
+    target = str(body.get("target") or "").strip()
+    if not target:
+        raise ValueError("target is required")
+    if len(target) > 300:
+        target = target[:300]
+    lang = str(body.get("lang") or p.get("lang") or "en").strip()
+    if lang not in ("id", "en"):
+        lang = "en"
+    depth = body.get("depth")
+    try:
+        depth = int(depth) if depth is not None else 3
+    except (TypeError, ValueError):
+        depth = 3
+    web = _active_web(p)
+    return engine_goal.goal_backtrack(web, target, lang=lang, max_back=depth)
 
 
 def handle_edit(body: dict) -> dict:
@@ -814,6 +864,56 @@ def _to_markdown(p: dict) -> str:
     else:
         lines += ["## Prediction", "", "*(no prediction run yet)*", ""]
     lines += [f"## Causal web", "", f"{p['web']['n_nodes']} events, {p['web']['n_edges']} causal links", ""]
+    # deterministic analysis sections (recomputed from the stored web)
+    try:
+        an = engine_analysis.analyze(p.get("result_web") or p["web"], p.get("prediction"),
+                                     lang=p.get("lang") or "en")
+    except Exception:
+        an = None
+    if an:
+        s = an["stats"]
+        lines += ["## Network analysis", "",
+                  f"- Events: {s['nodes']}",
+                  f"- Causal links: {s['edges']}",
+                  f"- Max depth: {s['max_depth']} (avg {s['avg_depth']})",
+                  f"- Terminal outcomes: {s['terminals']}",
+                  f"- Branching points: {s['branching_points']}",
+                  f"- Convergence points: {s['convergence_points']}",
+                  f"- Components: {s['components']}", ""]
+        if an.get("depth_histogram"):
+            lines += ["## Ripple depth", ""]
+            peak = max(d["count"] for d in an["depth_histogram"]) or 1
+            for d in an["depth_histogram"]:
+                bar = "█" * max(1, round(d["count"] / peak * 20))
+                lines.append(f"- Depth {d['level']}  {bar} {d['count']}")
+            lines.append("")
+        cp = an.get("critical_path") or {}
+        if cp.get("texts"):
+            meta = [f"{cp['length']} nodes"]
+            if cp.get("temporal_span") and cp["temporal_span"] != "0s":
+                meta.append(f"span {cp['temporal_span']}")
+            if isinstance(cp.get("probability"), (int, float)):
+                meta.append(f"probability {round(cp['probability'] * 100)}%")
+            if isinstance(cp.get("stability"), (int, float)):
+                meta.append(f"stability {round(cp['stability'] * 100)}%")
+            lines += ["## Critical path", "", " → ".join(cp["texts"]), "",
+                      " · ".join(meta), ""]
+        if an.get("temporal_span"):
+            ts = an["temporal_span"]
+            lines += ["## Temporal span", "",
+                      f"Start: T+0 · End: {timeutil.format_offset(ts['end_seconds'])} · Duration: {ts['duration']}", ""]
+        if an.get("branching"):
+            lines += ["## Branching", ""]
+            for b in an["branching"][:4]:
+                kids = ", ".join(c["text"] for c in b["children"])
+                lines.append(f"- {b['text']} ({b['count']}): {kids}")
+            lines.append("")
+        if an.get("convergence"):
+            lines += ["## Convergence", ""]
+            for c in an["convergence"][:4]:
+                ps = ", ".join(x["text"] for x in c["parents"])
+                lines.append(f"- {c['text']} ({c['count']}): {ps}")
+            lines.append("")
     return "\n".join(lines)
 
 
@@ -840,8 +940,54 @@ def _to_html(p: dict) -> str:
         f"<tr><td>{_esc(o.get('text'))}</td><td class='num'>{pct(o.get('probability', o.get('mean')))}</td></tr>"
         for o in (pred.get("top_outcomes") or []))
     steps = "".join(
-        f"<li><span class='day'>day {t.get('day', 0)}</span>{_esc(t.get('text'))}</li>"
+        f"<li><span class='day'>{_esc(timeutil.format_offset(timeutil.days_to_seconds(t.get('day'))))}</span>{_esc(t.get('text'))}</li>"
         for t in (pred.get("timeline") or []))
+    # analytical sections (deterministic — recomputed from the stored web)
+    try:
+        an = engine_analysis.analyze(web, pred, lang=p.get("lang") or "en")
+    except Exception:
+        an = None
+    an_html = ""
+    if an:
+        s = an["stats"]
+        stat_rows = "".join(
+            f"<tr><td>{_esc(k)}</td><td class='num'>{v}</td></tr>"
+            for k, v in [("Events", s["nodes"]), ("Causal links", s["edges"]),
+                         ("Max depth", s["max_depth"]), ("Avg depth", s["avg_depth"]),
+                         ("Terminal outcomes", s["terminals"]),
+                         ("Branching points", s["branching_points"]),
+                         ("Convergence points", s["convergence_points"]),
+                         ("Components", s["components"])])
+        depth_rows = "".join(
+            f"<tr><td>Depth {d['level']}</td><td class='num'>{d['count']}</td></tr>"
+            for d in an["depth_histogram"])
+        cp = an.get("critical_path") or {}
+        cp_html = ""
+        if cp.get("texts"):
+            meta = [f"{cp['length']} nodes"]
+            if cp.get("temporal_span") and cp["temporal_span"] != "0s":
+                meta.append(f"span {_esc(cp['temporal_span'])}")
+            if isinstance(cp.get("probability"), (int, float)):
+                meta.append(f"probability {pct(cp['probability'])}")
+            if isinstance(cp.get("stability"), (int, float)):
+                meta.append(f"stability {pct(cp['stability'])}")
+            cp_html = ("<section><h2>Critical path</h2><p>"
+                       + " → ".join(_esc(x) for x in cp["texts"])
+                       + f"</p><p class='meta'>{' · '.join(meta)}</p></section>")
+        fork_items = "".join(
+            f"<li>{_esc(b['text'])} <span class='meta'>({b['count']}): "
+            + ", ".join(_esc(c["text"]) for c in b["children"]) + "</span></li>"
+            for b in an["branching"][:4])
+        conv_items = "".join(
+            f"<li>{_esc(c['text'])} <span class='meta'>({c['count']}): "
+            + ", ".join(_esc(x["text"]) for x in c["parents"]) + "</span></li>"
+            for c in an["convergence"][:4])
+        an_html = f"""
+  <section><h2>Network analysis</h2><table>{stat_rows}</table></section>
+  <section><h2>Ripple depth</h2><table>{depth_rows}</table></section>
+  {cp_html}
+  {f"<section><h2>Branching</h2><ul>{fork_items}</ul></section>" if fork_items else ""}
+  {f"<section><h2>Convergence</h2><ul>{conv_items}</ul></section>" if conv_items else ""}"""
     ens = pred.get("ensemble") or {}
     ens_html = ""
     if ens:
@@ -876,6 +1022,7 @@ def _to_html(p: dict) -> str:
 {f"<section><h2>Most likely timeline</h2><ol>{steps}</ol></section>" if steps else ""}
 {f"<section><h2>Top outcomes</h2><table><tr><th>Outcome</th><th class='num'>Probability</th></tr>{rows_out}</table></section>" if rows_out else ""}
 {ens_html}
+{an_html}
 {f"<section><h2>Key findings</h2><ul>{findings}</ul></section>" if findings else ""}
 <footer>Riak · causal prediction engine — static export, no live data.</footer>
 </body></html>"""
@@ -889,6 +1036,7 @@ _POST_ROUTES = {
     "/api/chat": "handle_chat",
     "/api/develop": "handle_develop",
     "/api/derive": "handle_derive",
+    "/api/goal": "handle_goal",
     "/api/graph": "handle_edit",
     "/api/undo": "handle_undo",
     "/api/redo": "handle_redo",
@@ -1067,6 +1215,7 @@ class Handler(BaseHTTPRequestHandler):
                         p = projects.get(pid)
                     if not p:
                         return self._send_json({"error": "project not found"}, 404)
+                    _ensure_prediction(p)   # older projects get base likelihoods on open
                     return self._send_json(_project_view(p))
                 if path.startswith("/api/jobs/"):
                     jid = path.rsplit("/", 1)[-1]

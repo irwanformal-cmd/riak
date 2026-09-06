@@ -1,0 +1,4 @@
+packages:
+  - 'newgames1/growtopia-proto'
+allowBuilds:
+  esbuild: true

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Riak logo · a cause drops in, event nodes ripple outward through the web -->
+  <!-- Brand color: #136F8F (ocean teal) -->
+  <circle cx="50" cy="50" r="20" stroke="#136F8F" stroke-width="5" opacity=".85"
+          stroke-linecap="round" stroke-dasharray="102 24" transform="rotate(-30 50 50)"/>
+  <circle cx="50" cy="50" r="32" stroke="#136F8F" stroke-width="4.4" opacity=".55"
+          stroke-linecap="round" stroke-dasharray="166 35" transform="rotate(70 50 50)"/>
+  <circle cx="50" cy="50" r="43" stroke="#136F8F" stroke-width="3.6" opacity=".3"
+          stroke-linecap="round" stroke-dasharray="228 43" transform="rotate(165 50 50)"/>
+  <circle cx="50" cy="50" r="8.5" fill="#136F8F"/>
+  <circle cx="68.8" cy="43.2" r="4.6" fill="#136F8F"/>
+  <circle cx="29.4" cy="25.5" r="4" fill="#136F8F" opacity=".85"/>
+  <circle cx="39.1" cy="80.1" r="3.6" fill="#136F8F" opacity=".7"/>
+  <circle cx="57.5" cy="7.7" r="3" fill="#136F8F" opacity=".5"/>
+</svg>
