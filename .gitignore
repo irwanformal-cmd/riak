@@ -15,3 +15,8 @@ data/
 
 # Unrelated projects (separate repos)
 likegrowtopia/
+---
+
+# Local forks for PRs (not part of Riak)
+awesome-python/
+awesome-causal-inference/
