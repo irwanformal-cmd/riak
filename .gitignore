@@ -12,3 +12,6 @@ data/
 
 # OS
 .DS_Store
+
+# Unrelated projects (separate repos)
+likegrowtopia/
