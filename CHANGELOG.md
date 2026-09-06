@@ -65,6 +65,4 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 2 MB request-body cap (413)
 
 ### Notes
-- Renamed from the project's earlier working title to **Riak**; legacy
-  `MIROFISH_*` / `WANION_*` env vars remain as fallbacks
 - Zero runtime dependencies: Python 3.9+ standard library only

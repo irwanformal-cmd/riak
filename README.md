@@ -31,11 +31,6 @@ It runs **instantly with zero dependencies and zero API keys**, using a
 deterministic rule-based causal engine. Optionally, it upgrades its
 reasoning with any OpenAI-compatible LLM when you provide a key.
 
-Originally inspired by the multi-agent concept of
-[666ghj/MiroFish](https://github.com/666ghj/MiroFish), Riak is an original,
-independent implementation built around causal event webs instead of a cloud
-agent stack.
-
 ### What it does
 
 1. **Map the consequences:** paste a scenario, **import it from a URL**, or
@@ -195,9 +190,7 @@ See [CHANGELOG.md](CHANGELOG.md) for what already shipped.
 
 ### License
 
-MIT. An original implementation, independent of the AGPL-licensed MiroFish
-codebase. The swarm-intelligence *concept* is shared; no code was copied.
-Third-party assets (KaTeX, fonts) are credited in [NOTICE](NOTICE).
+MIT. Third-party assets (KaTeX, fonts) are credited in [NOTICE](NOTICE).
 
 ---
 
@@ -261,8 +254,7 @@ plugin registry, impor URL, pelacakan prediksi, dan kalibrasi.
 
 ### Lisensi
 
-MIT. Implementasi orisinal yang independen dari kode MiroFish (AGPL).
-Aset pihak ketiga (KaTeX, font) dicatat di [NOTICE](NOTICE).
+MIT. Aset pihak ketiga (KaTeX, font) dicatat di [NOTICE](NOTICE).
 
 ---
 
@@ -321,5 +313,4 @@ python3 backtest.py           # 历史情景评分
 
 ### 许可证
 
-MIT。原创实现，独立于 MiroFish 代码（AGPL）。第三方资产（KaTeX、
-字体）见 [NOTICE](NOTICE)。
+MIT。第三方资产（KaTeX、字体）见 [NOTICE](NOTICE)。

@@ -7,6 +7,6 @@ if [ ! -f .env ]; then
   cp .env.example .env 2>/dev/null || true
 fi
 
-PORT="${RIAK_PORT:-${MIROFISH_PORT:-8000}}"
+PORT="${RIAK_PORT:-8000}"
 echo "Starting Riak on http://127.0.0.1:${PORT} ..."
 exec python3 server.py

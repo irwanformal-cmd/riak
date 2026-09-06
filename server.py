@@ -61,8 +61,7 @@ log = logging.getLogger("riak")
 def _setup_logging() -> None:
     if log.handlers:  # idempotent (tests may re-import)
         return
-    log.setLevel((os.environ.get("RIAK_LOG_LEVEL") or
-                  os.environ.get("WANION_LOG_LEVEL", "INFO")).upper())
+    log.setLevel((os.environ.get("RIAK_LOG_LEVEL", "INFO")).upper())
     fmt = logging.Formatter("%(asctime)s %(levelname)-5s %(message)s")
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
@@ -80,8 +79,7 @@ def _setup_logging() -> None:
 # Token-bucket per client IP. Default 600 req/min — comfortably above the UI's
 # trajectory polling, but stops a hostile client from hammering heavy endpoints.
 _RATE: dict[str, list] = {}   # ip -> [count, window_start]
-_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT") or
-                  os.environ.get("WANION_RATE_LIMIT", "600"))
+_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT", "600"))
 _RATE_WINDOW = 60.0
 
 # Tiered limit: endpoints that burn LLM quota (real money) get a much lower
@@ -91,8 +89,7 @@ _HEAVY_PATHS = frozenset({
     "/api/report", "/api/chat", "/api/derive", "/api/fetch-url", "/api/goal",
 })
 _HEAVY_RATE: dict[str, list] = {}
-_HEAVY_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT_HEAVY") or
-                        os.environ.get("WANION_RATE_LIMIT_HEAVY", "30"))
+_HEAVY_RATE_LIMIT = int(os.environ.get("RIAK_RATE_LIMIT_HEAVY", "30"))
 
 
 def _bucket_ok(store: dict, ip: str, limit: int) -> bool:
@@ -117,7 +114,7 @@ def _heavy_rate_ok(ip: str) -> bool:
 # -------------------------------------------------------------------- access
 # Optional bearer token. REQUIRED when binding beyond localhost: without it the
 # whole API (projects, LLM config, paid endpoints) is open to the network.
-_AUTH_TOKEN = os.environ.get("RIAK_TOKEN") or os.environ.get("WANION_TOKEN", "")
+_AUTH_TOKEN = os.environ.get("RIAK_TOKEN", "")
 
 
 def _auth_ok(auth_header) -> bool:
@@ -1282,9 +1279,8 @@ def main():
     _load_projects()
     _load_llm_config()
     trajectory.set_sink(_traj_sink)
-    # RIAK_* is the canonical name; legacy MIROFISH_* still honoured for compat
-    port = int(os.environ.get("RIAK_PORT") or os.environ.get("MIROFISH_PORT", "8000"))
-    host = os.environ.get("RIAK_HOST") or os.environ.get("MIROFISH_HOST", "127.0.0.1")
+port = int(os.environ.get("RIAK_PORT", "8000"))
+    host = os.environ.get("RIAK_HOST", "127.0.0.1")
     httpd = ThreadingHTTPServer((host, port), Handler)
     c = llm.get_config()
     llm_state = f"LLM: {c['model']} @ {c['base_url']}" if llm.is_configured() else "LLM: offline (rule-based)"

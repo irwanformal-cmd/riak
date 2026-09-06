@@ -242,8 +242,7 @@ _LLM_CHUNK = 2
 def _llm_workers() -> int:
     """Concurrent LLM calls allowed during expansion/compare (env-tunable)."""
     try:
-        return max(1, int(os.environ.get("RIAK_LLM_WORKERS")
-                          or os.environ.get("WANION_LLM_WORKERS", "4")))
+        return max(1, int(os.environ.get("RIAK_LLM_WORKERS", "4")))
     except ValueError:
         return 4
 _llm_calls = 0

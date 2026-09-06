@@ -19,6 +19,4 @@ The following third-party assets are loaded at runtime via CDN:
    - License: SIL Open Font License 1.1
    - Used for: UI typography
 
-Concept acknowledgment: Riak's multi-agent simulation concept was inspired
-by MiroFish (https://github.com/666ghj/MiroFish). No MiroFish code is used;
-Riak is an independent implementation built around causal event webs.
+
