@@ -15,6 +15,8 @@
 
 [English](#english) · [Bahasa Indonesia](#bahasa-indonesia) · [中文](#中文)
 
+![Riak demo: paste a scenario, get a causal web, compare interventions](assets/demo.gif)
+
 </div>
 
 ---

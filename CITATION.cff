@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use Riak in your research, please cite it as below."
+type: software
+title: "Riak: Self-contained Causal Prediction Engine"
+authors:
+  - github: irwanformal-cmd
+abstract: >-
+  Riak turns a piece of text (a news story, a policy draft, a decision, a
+  "what if" question) into a branching cause-effect web of events, then
+  computes the most likely outcome chain through it. It runs with zero
+  dependencies (Python standard library only) using a deterministic
+  rule-based causal engine, with optional upgrades via any
+  OpenAI-compatible LLM.
+repository-code: "https://github.com/irwanformal-cmd/riak"
+url: "https://github.com/irwanformal-cmd/riak"
+license: MIT
+keywords:
+  - causal-inference
+  - prediction-engine
+  - monte-carlo
+  - decision-support
+  - offline-first
+  - zero-dependencies
+  - python
+version: 1.0.0
