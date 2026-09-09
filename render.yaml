@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: riak
+    runtime: python
+    repo: https://github.com/[USERNAME_GITHUB]/riak
+    branch: main
+    buildCommand: "echo 'zero deps'"
+    startCommand: "python3 server.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+    autoDeploy: true
