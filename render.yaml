@@ -2,7 +2,7 @@ services:
   - type: web
     name: riak
     runtime: python
-    repo: https://github.com/[USERNAME_GITHUB]/riak
+    repo: https://github.com/irwanformal-cmd/riak
     branch: main
     buildCommand: "echo 'zero deps'"
     startCommand: "python3 server.py"

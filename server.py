@@ -1279,7 +1279,7 @@ def main():
     _load_projects()
     _load_llm_config()
     trajectory.set_sink(_traj_sink)
-port = int(os.environ.get("RIAK_PORT", "8000"))
+    port = int(os.environ.get("RIAK_PORT", "8000"))
     host = os.environ.get("RIAK_HOST", "127.0.0.1")
     httpd = ThreadingHTTPServer((host, port), Handler)
     c = llm.get_config()

@@ -1907,3 +1907,64 @@ function escapeHtml(s) {
 function shorten(s, n) { s = String(s || ""); return s.length > n ? s.slice(0, n) + "…" : s; }
 
 document.addEventListener("DOMContentLoaded", init);
+
+/* ------------------------------------------------------------------ Riak Pro (MVP: localStorage + Paddle) */
+window.RIAK_PADDLE_PRODUCT_ID = window.RIAK_PADDLE_PRODUCT_ID || "__PADDLE_PRODUCT_ID__";
+
+function checkProStatus() {
+  const isPro = (() => { try { return localStorage.getItem("riak_pro") === "true"; } catch { return false; } })();
+  document.body.classList.toggle("pro", isPro);
+  document.querySelectorAll("#upgrade-btn").forEach((b) => b.classList.toggle("hidden", isPro));
+  document.querySelectorAll(".free-limit-badge").forEach((el) => el.classList.toggle("hidden", isPro));
+  let badge = document.getElementById("pro-badge");
+  if (isPro && !badge) {
+    badge = document.createElement("span");
+    badge.id = "pro-badge";
+    badge.className = "badge badge-pro";
+    badge.textContent = "PRO";
+    const anchor = document.querySelector(".topbar-right") || document.body;
+    anchor.prepend(badge);
+  }
+  if (!isPro && badge) badge.remove();
+  return isPro;
+}
+
+function injectUpgradeButton() {
+  if (document.getElementById("upgrade-btn")) return;
+  const sidebar = document.querySelector(".sidebar .panel");
+  if (!sidebar) return;
+  const btn = document.createElement("button");
+  btn.id = "upgrade-btn";
+  btn.className = "btn btn-primary btn-block";
+  btn.type = "button";
+  btn.textContent = "Upgrade to Pro — $9/mo";
+  btn.style.marginTop = "1rem";
+  sidebar.appendChild(btn);
+  btn.addEventListener("click", openPaddleCheckout);
+}
+
+function openPaddleCheckout() {
+  const pid = window.RIAK_PADDLE_PRODUCT_ID;
+  if (window.Paddle && pid && !pid.includes("__")) {
+    window.Paddle.Checkout.open({ items: [{ priceId: pid }] });
+  } else {
+    alert("Paddle loading... coba sebentar lagi");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  injectUpgradeButton();
+  checkProStatus();
+});
+
+if (window.Paddle && window.Paddle.Events && typeof window.Paddle.Events.on === "function") {
+  window.Paddle.Events.on("checkout.complete", (data) => {
+    try {
+      if (!data || data.productId === window.RIAK_PADDLE_PRODUCT_ID || data.priceId === window.RIAK_PADDLE_PRODUCT_ID) {
+        localStorage.setItem("riak_pro", "true");
+        checkProStatus();
+        alert("Pro activated! Refresh halaman.");
+      }
+    } catch {}
+  });
+}
