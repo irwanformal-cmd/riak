@@ -15,11 +15,15 @@
 
 [English](#english) · [Bahasa Indonesia](#bahasa-indonesia) · [中文](#中文)
 
-![Riak demo: paste a scenario, get a causal web, compare interventions](assets/demo.gif)
+![Riak demo: paste a scenario, get a causal web, compare interventions](assets/demo-web.gif)
 
 </div>
 
 ---
+
+## Demo
+
+![Demo](assets/demo-web.gif)
 
 ## English
 
